@@ -3,8 +3,7 @@
 <h1>⚙️ fs-builder</h1>
 
 <p>
-  <a href="#中文">中文</a> ·
-  <a href="#english">English</a>
+  <a href="README.en.md">English</a>
 </p>
 
 <p>
@@ -14,15 +13,13 @@
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square"/>
 </p>
 
-<p>自然语言 → Onshape FeatureScript 生成器</p>
+<p><strong>自然语言 → Onshape FeatureScript 生成器</strong></p>
 
 </div>
 
 ---
 
-<a id="中文"></a>
-
-## 📖 项目简介
+## 项目简介
 
 用中文（或英文）描述你的机械装配体，fs-builder 通过 AI 自动生成可直接粘贴到 [Onshape Feature Studio](https://www.onshape.com/en/features/featurescript) 的 `.fs` 文件。
 
@@ -34,7 +31,7 @@
 | **2. 生成** | `generator.py` | AI 并发为每个零件生成 FeatureScript 代码 |
 | **3. 合并** | `merger.py` | 确定性地将所有零件代码合并为一个完整 `.fs` 文件 |
 
-## 🚀 快速开始
+## 快速开始
 
 ### Web UI（推荐）
 
@@ -58,13 +55,14 @@ python main.py --input examples/drawing_die.txt
 python main.py --plan output/my_assembly_plan.json
 ```
 
-## ⚙️ 安装
+## 安装
 
 **环境要求：** Python ≥ 3.9，OpenAI 兼容的 API Key
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install --upgrade pip
 pip install -e .
 ```
 
@@ -79,9 +77,9 @@ OPENAI_API_KEY=sk-...
 # GENERATE_MODEL=gpt-4o-mini
 ```
 
-> 配置 `.env` 后，Web UI 会自动读取，无需每次手动填写。
+> 配置 `.env` 后，Web UI 和 CLI 均会自动读取，无需每次手动填写。
 
-## 📂 项目结构
+## 项目结构
 
 ```
 fs-builder/
@@ -101,29 +99,29 @@ fs-builder/
 └── .env.example
 ```
 
-## 🏗️ 架构
+## 架构
 
 ```
 用户需求（自然语言）
         │
         ▼
-  ┌───────────┐  AI (gpt-4o)   ┌─────────────────────┐
-  │ 分析器    │ ─────────────▶ │  JSON 设计方案       │
-  └───────────┘                │  零件列表 + 位置坐标  │
-                               └──────────┬──────────┘
+  ┌───────────┐  AI (gpt-4o)   ┌──────────────────────┐
+  │ 分析器    │ ─────────────▶ │  JSON 设计方案        │
+  └───────────┘                │  零件列表 + 位置坐标   │
+                               └──────────┬───────────┘
                                           │
                                           ▼
-                          ┌─────────────────────────────┐
-                          │  生成器（并发）              │  AI (gpt-4o-mini)
-                          │  每个零件独立调用 API        │ ──────────────▶
-                          └──────────────┬──────────────┘
+                          ┌──────────────────────────────┐
+                          │  生成器（并发）               │  AI (gpt-4o-mini)
+                          │  每个零件独立调用 API          │ ──────────────▶
+                          └──────────────┬───────────────┘
                                           │
                                           ▼
-                          ┌─────────────────────────────┐
-                          │  合并器（确定性）            │
-                          │  每个零件包裹在 {} 作用域内  │
-                          │  添加 FeatureScript 文件头   │
-                          └──────────────┬──────────────┘
+                          ┌──────────────────────────────┐
+                          │  合并器（确定性）              │
+                          │  每个零件包裹在 {} 作用域内    │
+                          │  添加 FeatureScript 文件头    │
+                          └──────────────┬───────────────┘
                                           │
                                           ▼
                              output/<assembly_name>.fs
@@ -131,7 +129,7 @@ fs-builder/
 
 JSON 设计方案是步骤 1 和步骤 2 之间的契约，保存在 `output/<name>_plan.json`，可复用以跳过分析步骤重新生成。
 
-## 🔧 命令行参数
+## 命令行参数
 
 ```
 python main.py [需求文本 | --input 文件路径]
@@ -145,82 +143,9 @@ python main.py [需求文本 | --input 文件路径]
                [--concurrency N]       最大并发 API 调用数（默认：8）
 ```
 
-## 📋 使用生成的文件
+## 使用生成的文件
 
 1. 打开 [Onshape](https://cad.onshape.com)，新建文档
 2. 从底部标签栏打开 **Feature Studio**
 3. 将 `.fs` 文件内容粘贴进去
 4. 点击 **Compile** — 自定义特征即出现在 Part Studio 中
-
----
-
-<a id="english"></a>
-
-<div align="right"><a href="#中文">↑ 返回中文</a></div>
-
-## 📖 Overview
-
-Describe a mechanical assembly in plain text. fs-builder uses AI to produce a ready-to-paste [Onshape Feature Studio](https://www.onshape.com/en/features/featurescript) `.fs` file in three steps:
-
-| Step | Module | Description |
-|------|--------|-------------|
-| **1. Analyze** | `analyzer.py` | AI converts the requirement into a structured JSON design plan |
-| **2. Generate** | `generator.py` | AI generates FeatureScript code for each part concurrently |
-| **3. Merge** | `merger.py` | Deterministic merge of all snippets into one compilable `.fs` file |
-
-## 🚀 Quick Start
-
-### Web UI (recommended)
-
-```bash
-cp .env.example .env   # add your API key
-./start.sh             # starts server and opens browser
-```
-
-### CLI
-
-```bash
-python main.py "Design a cold drawing die, OD 50mm, with punch, die body, and blank holder"
-python main.py --input examples/drawing_die.txt
-python main.py --plan output/my_assembly_plan.json   # reuse existing plan
-```
-
-## ⚙️ Setup
-
-**Requirements:** Python ≥ 3.9, an OpenAI-compatible API key.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -e .
-```
-
-Copy `.env.example` to `.env`:
-
-```env
-OPENAI_API_KEY=sk-...
-# OPENAI_BASE_URL=https://api.openai.com/v1
-# ANALYZE_MODEL=gpt-4o
-# GENERATE_MODEL=gpt-4o-mini
-```
-
-## 🔧 CLI Reference
-
-```
-python main.py [requirement | --input FILE]
-               [--output FILE]       output .fs path (default: output/<name>.fs)
-               [--plan FILE]         skip Step 1, load existing JSON plan
-               [--dry-run]           run Step 1 only, print the plan and exit
-               [--api-key KEY]       override OPENAI_API_KEY
-               [--base-url URL]      OpenAI-compatible base URL
-               [--analyze-model M]   model for Step 1 (default: gpt-4o)
-               [--generate-model M]  model for Step 2 (default: gpt-4o-mini)
-               [--concurrency N]     max parallel API calls (default: 8)
-```
-
-## 📋 Using the Output
-
-1. Open [Onshape](https://cad.onshape.com) and create a new document
-2. Open **Feature Studio** from the tab bar
-3. Paste the contents of the generated `.fs` file
-4. Click **Compile** — the feature appears in Part Studio
