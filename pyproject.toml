@@ -1,0 +1,18 @@
+[project]
+name = "fs-builder"
+version = "0.1.0"
+description = "Natural language → Onshape FeatureScript generator"
+requires-python = ">=3.9"
+
+[project.dependencies]
+openai = ">=1.0.0"
+fastapi = ">=0.100.0"
+uvicorn = {extras = ["standard"], version = ">=0.20.0"}
+python-dotenv = ">=1.0.0"
+
+[project.scripts]
+fs-builder = "main:main"
+fs-builder-web = "app:run"
+
+[tool.uv]
+dev-dependencies = []

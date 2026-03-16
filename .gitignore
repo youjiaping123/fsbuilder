@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+*.bak
+.DS_Store
+output/*.fs
+output/*_plan.json
+.env
