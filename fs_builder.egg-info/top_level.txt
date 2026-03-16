@@ -1,0 +1,5 @@
+analyzer
+app
+generator
+main
+merger

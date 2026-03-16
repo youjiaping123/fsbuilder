@@ -1,0 +1,13 @@
+README.md
+analyzer.py
+app.py
+generator.py
+main.py
+merger.py
+pyproject.toml
+fs_builder.egg-info/PKG-INFO
+fs_builder.egg-info/SOURCES.txt
+fs_builder.egg-info/dependency_links.txt
+fs_builder.egg-info/entry_points.txt
+fs_builder.egg-info/requires.txt
+fs_builder.egg-info/top_level.txt

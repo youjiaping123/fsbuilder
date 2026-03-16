@@ -1,0 +1,3 @@
+[console_scripts]
+fs-builder = main:main
+fs-builder-web = app:run

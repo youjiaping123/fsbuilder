@@ -63,7 +63,7 @@ python main.py --plan output/my_assembly_plan.json
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install --upgrade pip
-pip install -e .
+pip install .
 ```
 
 复制 `.env.example` 为 `.env` 并填写配置：
