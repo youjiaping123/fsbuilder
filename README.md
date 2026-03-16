@@ -37,7 +37,7 @@
 
 ```bash
 cp .env.example .env   # 填写你的 API Key
-./start.sh             # 启动服务器并自动打开浏览器
+./start.command             # 启动服务器并自动打开浏览器
 ```
 
 在网页中输入需求，点击 **Generate FeatureScript** 即可。

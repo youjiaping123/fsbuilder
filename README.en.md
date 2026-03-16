@@ -35,7 +35,7 @@ Describe a mechanical assembly in plain text. fs-builder uses AI to produce a re
 
 ```bash
 cp .env.example .env   # add your API key
-./start.sh             # starts server and opens browser
+./start.command             # starts server and opens browser
 ```
 
 Type your requirement in the web page and click **Generate FeatureScript**.
