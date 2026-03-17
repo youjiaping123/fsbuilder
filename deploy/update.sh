@@ -17,12 +17,12 @@ SERVICE_NAME="fs-builder"
 
 info "更新 fs-builder..."
 
-# 如果是 git 仓库则拉取最新代码
+# git 仓库：pull 最新代码
 if [[ -d "$APP_DIR/.git" ]]; then
-  info "拉取最新代码..."
-  git -C "$APP_DIR" pull
+  info "拉取最新代码（git pull）..."
+  git -C "$APP_DIR" pull origin main
 else
-  # 将本地最新文件同步到服务器
+  # 非 git：将调用方目录同步过来
   SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   SRC_DIR="$(dirname "$SCRIPT_DIR")"
   info "同步文件从 $SRC_DIR ..."
