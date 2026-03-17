@@ -1,0 +1,18 @@
+[Unit]
+Description=fs-builder — Natural Language to FeatureScript
+After=network.target
+
+[Service]
+Type=simple
+User=fs-builder
+WorkingDirectory=/opt/fs-builder
+ExecStart=/opt/fs-builder/.venv/bin/python3 app.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/opt/fs-builder/.env
+
+[Install]
+WantedBy=multi-user.target
