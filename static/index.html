@@ -407,7 +407,23 @@
 
   async function copyCode() {
     if (!currentCode) return;
-    await navigator.clipboard.writeText(currentCode);
+    // navigator.clipboard 仅在 HTTPS / localhost 下可用，HTTP 降级用 execCommand
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(currentCode);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = currentCode;
+        ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    } catch (e) {
+      alert('复制失败，请手动选中代码后 Ctrl+C');
+      return;
+    }
     const btn = document.getElementById('copyBtn');
     btn.textContent = 'Copied!';
     setTimeout(() => {

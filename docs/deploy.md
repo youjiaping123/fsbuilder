@@ -42,13 +42,13 @@ sudo bash deploy/setup.sh
 
 ```bash
 sudo bash deploy/setup.sh --domain your.domain.com
-```
 
 脚本会自动完成：
-- 安装 Python、nginx
+- 安装 Python、nginx、certbot
 - 创建虚拟环境、安装依赖
 - 配置 systemd 服务（开机自启）
 - 配置 nginx 反向代理
+- 自动申请 Let's Encrypt SSL 证书并启用 HTTPS（需域名已解析到服务器）
 
 ### 3. 填写 API Key
 
@@ -171,16 +171,14 @@ sudo systemctl reload nginx
 
 ---
 
-## 可选：配置 HTTPS
+## 可选：手动申请 HTTPS 证书
 
-如果有域名，可以用 Certbot 免费申请 SSL 证书：
+如果部署时没有指定域名，后续想补上 HTTPS：
 
 ```bash
 sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d your.domain.com
 ```
-
-Certbot 会自动修改 nginx 配置并设置自动续期。
 
 ---
 
