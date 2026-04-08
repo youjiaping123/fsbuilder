@@ -1,151 +1,117 @@
-<div align="center">
+# fs-builder
 
-<h1>⚙️ fs-builder</h1>
+面向毕设演示的 CLI 工具：把简单机械结构需求先分析成结构化 plan，再生成可粘贴到 Onshape Feature Studio 的 FeatureScript。
 
-<p>
-  <a href="README.en.md">English</a>
-</p>
+当前版本是 **CLI-first 精简版**：
 
-<p>
-  <img src="https://img.shields.io/badge/Python-3.9+-3776AB?style=flat-square&logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Onshape-FeatureScript-FF6B35?style=flat-square"/>
-  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square"/>
-</p>
+- 保留三段式流程：`analyze -> generate -> merge`
+- Web UI、SSE、服务器部署脚本已移除
+- Step 2 仍然是 **legacy LLM 生成器**，只是过渡方案
+- 后续会替换成你提供资料后的 FeatureScript 模板生成
 
-<p><strong>自然语言 → Onshape FeatureScript 生成器</strong></p>
+## 适用范围
 
-</div>
+当前只面向简单演示模型，plan 只支持这 5 种零件形状：
 
----
+- `box`
+- `cylinder`
+- `hollow_cylinder`
+- `tapered_cylinder`
+- `flange`
 
-## 项目简介
-
-用中文（或英文）描述你的机械装配体，fs-builder 通过 AI 自动生成可直接粘贴到 [Onshape Feature Studio](https://www.onshape.com/en/features/featurescript) 的 `.fs` 文件。
-
-整个流程分为三步：
-
-| 步骤 | 模块 | 说明 |
-|------|------|------|
-| **1. 分析** | `analyzer.py` | AI 将自然语言需求转换为结构化 JSON 设计方案 |
-| **2. 生成** | `generator.py` | AI 并发为每个零件生成 FeatureScript 代码 |
-| **3. 合并** | `merger.py` | 确定性地将所有零件代码合并为一个完整 `.fs` 文件 |
-
-## 快速开始
-
-### Web UI（推荐）
-
-```bash
-cp .env.example .env   # 填写你的 API Key
-./start.command             # 启动服务器并自动打开浏览器
-```
-
-在网页中输入需求，点击 **Generate FeatureScript** 即可。
-
-### 命令行
-
-```bash
-# 直接输入需求
-python main.py "设计一套冷拔模具，外径 50mm，包含凸模、凹模和压边圈"
-
-# 从文件读取
-python main.py --input examples/drawing_die.txt
-
-# 跳过分析步骤，复用已有 JSON 方案
-python main.py --plan output/my_assembly_plan.json
-```
+如果分析结果出现不支持的 shape，CLI 会直接报错，不会继续硬生成。
 
 ## 安装
 
-**环境要求：** Python ≥ 3.9，OpenAI 兼容的 API Key
-
 ```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install --upgrade pip
-pip install .
+pip install -e .[dev]
+cp .env.example .env
 ```
 
-复制 `.env.example` 为 `.env` 并填写配置：
+`.env` 示例：
 
 ```env
 OPENAI_API_KEY=sk-...
-
-# 以下为可选项
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # ANALYZE_MODEL=gpt-4o
 # GENERATE_MODEL=gpt-4o-mini
 ```
 
-> 配置 `.env` 后，Web UI 和 CLI 均会自动读取，无需每次手动填写。
+## CLI 用法
+
+### 1. 只做需求分析
+
+```bash
+fs-builder analyze --input examples/drawing_die.txt --output output/drawing_die_plan.json
+```
+
+不加 `--output` 时，会直接把 JSON 打到标准输出。
+
+### 2. 校验已有 plan
+
+```bash
+fs-builder validate-plan --plan output/drawing_die_plan.json
+```
+
+### 3. 基于已有 plan 生成 FeatureScript
+
+```bash
+fs-builder generate --plan output/drawing_die_plan.json
+```
+
+默认输出到 `output/<assembly_name>.fs`。
+
+### 4. 走完整流程
+
+```bash
+fs-builder build --input examples/drawing_die.txt
+```
+
+这会：
+
+1. 调用分析器生成并校验 plan
+2. 把 plan 保存到 `output/<assembly_name>_plan.json`
+3. 调用 legacy 生成器生成各零件代码
+4. 合并成 `output/<assembly_name>.fs`
 
 ## 项目结构
 
-```
-fs-builder/
-├── app.py              # FastAPI 服务器（SSE 实时流式输出）
-├── main.py             # 命令行入口
-├── analyzer.py         # Step 1 — 需求 → JSON 设计方案
-├── generator.py        # Step 2 — 并发生成各零件 FeatureScript
-├── merger.py           # Step 3 — 合并为完整 .fs 文件
-├── prompts/
-│   ├── analyze.txt     # 分析步骤的系统提示词
-│   └── generate.txt    # 生成步骤的系统提示词
-├── examples/
-│   └── drawing_die.txt # 示例需求（冷拉延模具）
-├── static/
-│   └── index.html      # Web UI
-├── output/             # 生成的 .fs 文件（已加入 .gitignore）
-└── .env.example
+```text
+src/fs_builder/
+├── cli.py               # 新的 CLI 子命令入口
+├── settings.py          # .env 和运行配置
+├── models.py            # 强类型 plan schema
+├── analyzer.py          # Step 1: requirement -> plan
+├── generator.py         # Step 2: legacy LLM generator
+├── merger.py            # Step 3: merge FeatureScript
+├── paths.py             # 输出路径 sanitize
+├── plan_io.py           # plan 读写
+└── prompts/
+    ├── analyze.txt
+    └── generate_legacy.txt
 ```
 
-## 架构
+## 设计原则
 
-```
-用户需求（自然语言）
-        │
-        ▼
-  ┌───────────┐  AI (gpt-4o)   ┌──────────────────────┐
-  │ 分析器    │ ─────────────▶ │  JSON 设计方案        │
-  └───────────┘                │  零件列表 + 位置坐标   │
-                               └──────────┬───────────┘
-                                          │
-                                          ▼
-                          ┌──────────────────────────────┐
-                          │  生成器（并发）               │  AI (gpt-4o-mini)
-                          │  每个零件独立调用 API          │ ──────────────▶
-                          └──────────────┬───────────────┘
-                                          │
-                                          ▼
-                          ┌──────────────────────────────┐
-                          │  合并器（确定性）              │
-                          │  每个零件包裹在 {} 作用域内    │
-                          │  添加 FeatureScript 文件头    │
-                          └──────────────┬───────────────┘
-                                          │
-                                          ▼
-                             output/<assembly_name>.fs
+- AI 先负责把需求变成结构化 plan
+- CLI 和 schema 负责尽早拦截错误
+- 输出路径不直接信任模型字符串
+- 旧的自由生成逻辑先保留，但明确标记为临时实现
+
+## 已知限制
+
+- 当前不是模板生成版，FeatureScript 输出仍然依赖 LLM，稳定性有限
+- 还不支持复杂装配约束求解
+- 还不支持 Web 演示界面
+- 还没有接入 Onshape 编译验证闭环
+
+## 测试
+
+```bash
+pytest
 ```
 
-JSON 设计方案是步骤 1 和步骤 2 之间的契约，保存在 `output/<name>_plan.json`，可复用以跳过分析步骤重新生成。
-
-## 命令行参数
-
-```
-python main.py [需求文本 | --input 文件路径]
-               [--output 文件路径]      输出 .fs 文件路径（默认：output/<name>.fs）
-               [--plan 文件路径]        跳过步骤 1，加载已有 JSON 方案
-               [--dry-run]             仅执行步骤 1，打印方案后退出
-               [--api-key KEY]         覆盖 OPENAI_API_KEY 环境变量
-               [--base-url URL]        OpenAI 兼容的 API 地址
-               [--analyze-model M]     步骤 1 使用的模型（默认：gpt-4o）
-               [--generate-model M]    步骤 2 使用的模型（默认：gpt-4o-mini）
-               [--concurrency N]       最大并发 API 调用数（默认：8）
-```
-
-## 使用生成的文件
-
-1. 打开 [Onshape](https://cad.onshape.com)，新建文档
-2. 从底部标签栏打开 **Feature Studio**
-3. 将 `.fs` 文件内容粘贴进去
-4. 点击 **Compile** — 自定义特征即出现在 Part Studio 中
+CI 也会在 GitHub Actions 里跑同样的测试。

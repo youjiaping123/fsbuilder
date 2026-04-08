@@ -1,25 +1,34 @@
 [project]
 name = "fs-builder"
-version = "0.1.0"
-description = "Natural language → Onshape FeatureScript generator"
+version = "0.2.0"
+description = "CLI-first demo for natural language to Onshape FeatureScript"
 requires-python = ">=3.9"
 dependencies = [
     "openai>=1.0.0",
-    "fastapi>=0.100.0",
-    "uvicorn[standard]>=0.20.0",
+    "pydantic>=2.7.0",
     "python-dotenv>=1.0.0",
 ]
 
-[project.scripts]
-fs-builder = "main:main"
-fs-builder-web = "app:run"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
 
-[tool.setuptools]
-py-modules = ["analyzer", "app", "generator", "main", "merger"]
+[project.scripts]
+fs-builder = "fs_builder.cli:main"
 
 [build-system]
-requires = ["setuptools>=42"]
+requires = ["setuptools>=58", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.uv]
-dev-dependencies = []
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"fs_builder.prompts" = ["*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
