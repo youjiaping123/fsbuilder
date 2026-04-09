@@ -1,16 +1,15 @@
-"""Strongly typed plan schema."""
+"""强类型 plan schema。"""
 
 from __future__ import annotations
 
 from math import isfinite
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 from .errors import PlanValidationError
 
-
-Identifier = Field(pattern=r"^[a-z][a-z0-9_]*$")
+Identifier = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
 PartShape = Literal["box", "cylinder", "hollow_cylinder", "tapered_cylinder", "flange"]
 MaterialHint = Literal["steel", "cast_iron", "carbide", "general"]
 RelationType = Literal["stacked_on", "press_fit_into", "bolted_to", "guided_by"]
@@ -30,6 +29,8 @@ _SHAPE_PARAM_KEYS: dict[str, tuple[str, ...]] = {
 
 
 class StrictModel(BaseModel):
+    """统一禁止额外字段，并在字符串字段上自动裁剪空白。"""
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
@@ -55,7 +56,7 @@ class PositionSpec(StrictModel):
 
 
 class PartSpec(StrictModel):
-    id: str = Identifier
+    id: Identifier
     name: str = Field(min_length=1)
     shape: PartShape
     material_hint: MaterialHint
@@ -74,7 +75,7 @@ class PartSpec(StrictModel):
         return value
 
     @model_validator(mode="after")
-    def validate_shape_params(self) -> "PartSpec":
+    def validate_shape_params(self) -> PartSpec:
         expected_keys = set(_SHAPE_PARAM_KEYS[self.shape])
         actual_keys = set(self.params)
         if actual_keys != expected_keys:
@@ -99,28 +100,28 @@ class PartSpec(StrictModel):
 
 
 class AssemblyRelation(StrictModel):
-    child_id: str = Identifier
-    parent_id: str = Identifier
+    child_id: Identifier
+    parent_id: Identifier
     relation: RelationType
 
     @model_validator(mode="after")
-    def not_self_reference(self) -> "AssemblyRelation":
+    def not_self_reference(self) -> AssemblyRelation:
         if self.child_id == self.parent_id:
             raise ValueError("child_id and parent_id must be different.")
         return self
 
 
 class AssemblyPlan(StrictModel):
-    assembly_name: str = Identifier
+    assembly_name: Identifier
     description: str = Field(min_length=1)
     global_params: GlobalParams
     parts: list[PartSpec] = Field(min_length=1)
     assembly_relations: list[AssemblyRelation]
 
     @model_validator(mode="after")
-    def validate_cross_references(self) -> "AssemblyPlan":
+    def validate_cross_references(self) -> AssemblyPlan:
         part_ids = [part.id for part in self.parts]
-        duplicate_ids = {part_id for part_id in part_ids if part_ids.count(part_id) > 1}
+        duplicate_ids = _find_duplicates(part_ids)
         if duplicate_ids:
             raise ValueError(f"Duplicate part ids: {sorted(duplicate_ids)}")
 
@@ -141,3 +142,14 @@ def validate_plan_data(data: object) -> AssemblyPlan:
         return AssemblyPlan.model_validate(data)
     except ValidationError as exc:
         raise PlanValidationError(str(exc)) from exc
+
+
+def _find_duplicates(values: list[str]) -> set[str]:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        else:
+            seen.add(value)
+    return duplicates

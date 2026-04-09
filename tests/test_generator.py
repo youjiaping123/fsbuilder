@@ -119,7 +119,7 @@ def test_template_generator_covers_all_supported_shapes() -> None:
     by_part = {result.part_id: result.code for result in results}
     assert "fCuboid" in by_part["base_block"]
     assert "corner1" in by_part["base_block"]
-    assert 'PropertyType.NAME' in by_part["base_block"]
+    assert "PropertyType.NAME" in by_part["base_block"]
     assert "fCylinder" in by_part["center_boss"]
     assert "bottomCenter" in by_part["center_boss"]
     assert '"value" : "Center Boss"' in by_part["center_boss"]
@@ -129,13 +129,17 @@ def test_template_generator_covers_all_supported_shapes() -> None:
     assert "fCone" in by_part["tapered_post"]
     assert "topRadius" in by_part["tapered_post"]
     assert "BooleanOperationType.UNION" in by_part["mounting_flange"]
-    assert 'qCreatedBy(id + "mounting_flange_flange", EntityType.BODY)' in by_part["mounting_flange"]
+    assert (
+        'qCreatedBy(id + "mounting_flange_flange", EntityType.BODY)' in by_part["mounting_flange"]
+    )
     assert '"value" : "Mounting Flange"' in by_part["mounting_flange"]
 
 
 def test_reference_guide_is_packaged() -> None:
-    content = files("fs_builder.references").joinpath("featurescript_guide.md").read_text(
-        encoding="utf-8"
+    content = (
+        files("fs_builder.references")
+        .joinpath("featurescript_guide.md")
+        .read_text(encoding="utf-8")
     )
 
     assert "FeatureScript 使用教程" in content

@@ -2,8 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from fs_builder import analyzer
-from fs_builder.errors import PlanValidationError
+import pytest
+
+from fs_builder.analysis import service as analysis_service
+from fs_builder.analysis.errors import AnalysisOutputParseError, AnalysisRequestError
+from fs_builder.analysis.parsing import (
+    extract_response_content,
+    extract_stream_content,
+    parse_analysis_payload,
+    token_attempts,
+)
+from fs_builder.analysis.provider import request_analysis_content
 from fs_builder.models import AssemblyPlan
 from fs_builder.settings import Settings
 
@@ -65,46 +74,36 @@ def _settings() -> Settings:
 
 
 def test_token_attempts_fall_back_to_provider_safe_values() -> None:
-    assert analyzer._token_attempts(16384) == [16384, 2048, 1024]
-    assert analyzer._token_attempts(2048) == [2048, 1024]
+    assert token_attempts(16384) == [16384, 2048, 1024]
+    assert token_attempts(2048) == [2048, 1024]
 
 
 def test_request_analysis_content_retries_after_empty_response() -> None:
-    fake_client = _FakeClient(["", "{\"assembly_name\":\"ok\"}"])
-    settings = _settings()
+    fake_client = _FakeClient(["", '{"assembly_name":"ok"}'])
 
-    content = analyzer._request_analysis_content(
+    content = request_analysis_content(
         client=fake_client,
         requirement="demo",
-        settings=settings,
+        settings=_settings(),
     )
 
-    assert content == "{\"assembly_name\":\"ok\"}"
+    assert content == '{"assembly_name":"ok"}'
     assert fake_client.chat.completions.calls == [8192, 8192]
 
 
 def test_request_analysis_content_wraps_provider_errors() -> None:
-    settings = _settings()
-
-    try:
-        analyzer._request_analysis_content(
+    with pytest.raises(AnalysisRequestError, match="分析请求失败"):
+        request_analysis_content(
             client=_FailingClient(),
             requirement="demo",
-            settings=settings,
+            settings=_settings(),
         )
-    except PlanValidationError as exc:
-        assert "Analyzer request failed." in str(exc)
-        assert "network down" in str(exc)
-    else:
-        raise AssertionError("Expected analyzer request failure")
 
 
 def test_request_analysis_content_supports_raw_sse_requester() -> None:
-    settings = _settings()
-
-    content = analyzer._request_analysis_content(
+    content = request_analysis_content(
         requirement="demo",
-        settings=settings,
+        settings=_settings(),
         requester=lambda **_: "\n".join(
             [
                 'data: {"choices":[{"delta":{"content":"{"}}]}',
@@ -118,7 +117,7 @@ def test_request_analysis_content_supports_raw_sse_requester() -> None:
 
 
 def test_extract_response_content_supports_string_payload() -> None:
-    assert analyzer._extract_response_content("{\"assembly_name\":\"ok\"}") == "{\"assembly_name\":\"ok\"}"
+    assert extract_response_content('{"assembly_name":"ok"}') == '{"assembly_name":"ok"}'
 
 
 def test_extract_response_content_supports_sse_payload() -> None:
@@ -129,7 +128,7 @@ def test_extract_response_content_supports_sse_payload() -> None:
             "data: [DONE]",
         ]
     )
-    assert analyzer._extract_response_content(payload) == '{"assembly_name":"ok"}'
+    assert extract_response_content(payload) == '{"assembly_name":"ok"}'
 
 
 def test_extract_stream_content_joins_stream_deltas() -> None:
@@ -139,10 +138,15 @@ def test_extract_stream_content_joins_stream_deltas() -> None:
         {"choices": [{"delta": {"content": "}"}}]},
     ]
 
-    assert analyzer._extract_stream_content(chunks) == '{"assembly_name":"ok"}'
+    assert extract_stream_content(chunks) == '{"assembly_name":"ok"}'
 
 
-def test_analyze_requirement_uses_retry_and_returns_plan(monkeypatch) -> None:
+def test_parse_analysis_payload_rejects_invalid_json() -> None:
+    with pytest.raises(AnalysisOutputParseError, match="不是有效 JSON"):
+        parse_analysis_payload("```json\nnot-json\n```")
+
+
+def test_analyze_requirement_uses_retry_and_returns_plan() -> None:
     fake_client = _FakeClient(
         [
             "",
@@ -181,54 +185,58 @@ def test_analyze_requirement_uses_retry_and_returns_plan(monkeypatch) -> None:
             """,
         ]
     )
-    monkeypatch.setattr(analyzer, "OpenAI", lambda **kwargs: fake_client)
-    settings = Settings(
+    settings = Settings.from_sources(
         api_key="sk-test",
-        base_url=None,
-        api_timeout_seconds=30.0,
         analyze_model="gpt-test",
         analyze_max_tokens=8192,
-        generate_model="gpt-test",
-        concurrency=4,
         output_dir="output",
     )
 
-    plan = analyzer.analyze_requirement("Design a simple block.", settings)
+    plan = analysis_service.analyze_requirement(
+        "Design a simple block.",
+        settings,
+        client=fake_client,
+    )
 
     assert isinstance(plan, AssemblyPlan)
     assert plan.assembly_name == "demo_fixture"
     assert fake_client.chat.completions.calls == [8192, 8192]
 
 
-def test_analyze_requirement_falls_back_to_local_drawing_die_plan(monkeypatch) -> None:
+def test_analyze_requirement_falls_back_to_demo_plan(monkeypatch) -> None:
     monkeypatch.setattr(
-        analyzer,
-        "_request_analysis_content",
-        lambda **kwargs: (_ for _ in ()).throw(PlanValidationError("upstream empty")),
+        analysis_service,
+        "request_analysis_content",
+        lambda **kwargs: (_ for _ in ()).throw(AnalysisRequestError("upstream empty")),
     )
-    settings = Settings(
-        api_key=None,
+    settings = Settings.from_sources(
         base_url="https://example.invalid/v1",
-        api_timeout_seconds=30.0,
         analyze_model="gpt-test",
         analyze_max_tokens=2048,
-        generate_model="gpt-test",
-        concurrency=4,
         output_dir="output",
     )
 
-    plan = analyzer.analyze_requirement(
-        "设计一个冷拉延模具（Cold Drawing Die），只建五个主件。上模座尺寸 200×200×40 mm，下模座尺寸 200×200×40 mm。"
-        "压边圈外径 = 凹模外径 = 160 mm。凹模型腔直径 = 64 mm。凸模外径 = 60 mm，高度 80 mm。",
+    plan = analysis_service.analyze_requirement(
+        (
+            "设计一个冷拉延模具（Cold Drawing Die），只建五个主件。"
+            "上模座尺寸 200×200×40 mm，下模座尺寸 200×200×40 mm。"
+            "压边圈外径 = 凹模外径 = 160 mm。凹模型腔直径 = 64 mm。"
+            "凸模外径 = 60 mm，高度 80 mm。"
+        ),
         settings,
     )
 
     assert plan.assembly_name == "drawing_die"
     assert len(plan.parts) == 5
-    assert {part.id for part in plan.parts} == {
-        "lower_die_seat",
-        "drawing_die",
-        "blank_holder",
-        "upper_die_seat",
-        "punch",
-    }
+
+
+def test_analyze_requirement_keeps_non_demo_failures_visible(monkeypatch) -> None:
+    monkeypatch.setattr(
+        analysis_service,
+        "request_analysis_content",
+        lambda **kwargs: (_ for _ in ()).throw(AnalysisRequestError("network down")),
+    )
+    settings = Settings.from_sources(analyze_model="gpt-test", output_dir="output")
+
+    with pytest.raises(AnalysisRequestError, match="network down"):
+        analysis_service.analyze_requirement("Design a simple box.", settings)

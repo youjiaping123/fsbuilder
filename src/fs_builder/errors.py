@@ -1,17 +1,17 @@
-"""Project-level exceptions."""
+"""项目级异常定义。"""
 
 
 class FSBuilderError(Exception):
-    """Base error for user-facing command failures."""
+    """所有面向用户的业务异常都应继承自这里。"""
 
 
 class ConfigError(FSBuilderError):
-    """Raised when configuration is missing or invalid."""
+    """配置缺失或配置值非法。"""
 
 
 class CLIError(FSBuilderError):
-    """Raised for invalid CLI usage that passes argparse parsing."""
+    """参数在 argparse 通过后仍然不满足业务约束。"""
 
 
 class PlanValidationError(FSBuilderError):
-    """Raised when a plan cannot be parsed or validated."""
+    """Plan 无法解析或不满足 schema 约束。"""

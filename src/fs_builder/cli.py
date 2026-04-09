@@ -1,78 +1,83 @@
-"""Command-line interface for fs-builder."""
+"""fs-builder 命令行入口。"""
 
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
-from typing import Sequence
+from collections.abc import Sequence
+from pathlib import Path
 
-from .analyzer import analyze_requirement
-from .errors import CLIError, FSBuilderError
-from .generator import PartResult, build_generator, count_failed_parts
-from .merger import merge_featurescript
-from .paths import featurescript_output_path, plan_output_path
-from .plan_io import load_plan_file, write_plan_file
-from .settings import Settings
+from .application import analyze_command, build_command, generate_command, validate_plan_command
+from .errors import FSBuilderError
+from .generation import GenerationReport
+from .settings import Settings, load_project_env
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fs-builder",
-        description="CLI-first demo tool for natural language to Onshape FeatureScript.",
+        description="把自然语言需求转换为结构化 plan，并生成 Onshape FeatureScript。",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    analyze_parser = subparsers.add_parser("analyze", help="Analyze requirement text into a plan.")
+    analyze_parser = subparsers.add_parser("analyze", help="把需求文本分析成 plan。")
     _add_requirement_source(analyze_parser)
-    _add_shared_options(analyze_parser, include_generate=False)
+    _add_shared_options(analyze_parser)
     analyze_parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help="Write the validated plan JSON to this file instead of stdout.",
+        help="把校验后的 plan JSON 写入指定文件；未传时输出到 stdout。",
     )
     analyze_parser.set_defaults(handler=_run_analyze)
 
-    validate_parser = subparsers.add_parser("validate-plan", help="Validate an existing plan file.")
-    validate_parser.add_argument("--plan", type=Path, required=True, help="Path to a plan JSON file.")
+    validate_parser = subparsers.add_parser("validate-plan", help="校验已有 plan 文件。")
+    validate_parser.add_argument("--plan", type=Path, required=True, help="plan JSON 文件路径。")
     validate_parser.set_defaults(handler=_run_validate_plan)
 
     generate_parser = subparsers.add_parser(
         "generate",
-        help="Generate FeatureScript from a validated plan using deterministic templates by default.",
+        help="根据已校验的 plan 生成 FeatureScript。",
     )
-    generate_parser.add_argument("--plan", type=Path, required=True, help="Path to a validated plan JSON file.")
+    generate_parser.add_argument(
+        "--plan",
+        type=Path,
+        required=True,
+        help="已校验的 plan JSON 文件路径。",
+    )
     _add_shared_options(generate_parser, include_analyze=False)
-    _add_generator_mode_option(generate_parser)
     generate_parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help="Output .fs path. Defaults to output/<assembly_name>.fs.",
+        help="输出 `.fs` 文件路径；未传时默认写入 `output/<assembly_name>.fs`。",
     )
     generate_parser.set_defaults(handler=_run_generate)
 
     build_parser = subparsers.add_parser(
         "build",
-        help="Analyze or load a plan, then generate and merge a FeatureScript file.",
+        help="分析需求或读取已有 plan，然后生成 FeatureScript。",
     )
-    build_parser.add_argument("requirement", nargs="?", help="Inline requirement string.")
-    build_parser.add_argument("--input", "-i", type=Path, help="Path to a requirement text file.")
-    build_parser.add_argument("--plan", type=Path, default=None, help="Skip analysis and load a plan file.")
+    build_parser.add_argument("requirement", nargs="?", help="内联需求文本。")
+    build_parser.add_argument("--input", "-i", type=Path, help="需求文本文件路径。")
+    build_parser.add_argument(
+        "--plan",
+        type=Path,
+        default=None,
+        help="跳过分析，直接读取 plan 文件。",
+    )
     _add_shared_options(build_parser)
-    _add_generator_mode_option(build_parser)
     build_parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help="Output .fs path. Defaults to output/<assembly_name>.fs.",
+        help="输出 `.fs` 文件路径；未传时默认写入 `output/<assembly_name>.fs`。",
     )
     build_parser.add_argument(
         "--plan-output",
         type=Path,
         default=None,
-        help="Where to save the validated plan. Defaults to output/<assembly_name>_plan.json.",
+        help="保存校验后 plan 的路径；未传时默认写入 `output/<assembly_name>_plan.json`。",
     )
     build_parser.set_defaults(handler=_run_build)
 
@@ -83,150 +88,117 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
-        return args.handler(args)
+        return int(args.handler(args))
     except FSBuilderError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        print(f"错误：{exc}", file=sys.stderr)
         return 2
 
 
 def _run_analyze(args: argparse.Namespace) -> int:
-    settings = _resolve_settings(args, include_generate=False)
-    requirement = _read_requirement(args.requirement, args.input)
-    plan = analyze_requirement(requirement, settings)
-    if args.output is not None:
-        write_plan_file(plan, args.output)
-        print(args.output)
+    settings = _resolve_settings(args)
+    result = analyze_command(
+        settings=settings,
+        requirement_text=args.requirement,
+        input_path=args.input,
+        output_path=args.output,
+    )
+    if result.output_path is not None:
+        print(f"Plan 已写入：{result.output_path}")
     else:
-        print(plan.to_pretty_json())
+        print(result.plan.to_pretty_json())
     return 0
 
 
 def _run_validate_plan(args: argparse.Namespace) -> int:
-    plan = load_plan_file(args.plan)
-    print(f"Plan is valid: {plan.assembly_name} ({len(plan.parts)} parts)")
+    result = validate_plan_command(args.plan)
+    print(f"Plan 校验通过：{result.plan.assembly_name}（{len(result.plan.parts)} 个零件）")
     return 0
 
 
 def _run_generate(args: argparse.Namespace) -> int:
     settings = _resolve_settings(args, include_analyze=False)
-    plan = load_plan_file(args.plan)
-    results = build_generator(settings, legacy=args.legacy).generate(plan)
-    fs_content = merge_featurescript(plan, results)
-    output_path = args.output or featurescript_output_path(settings.output_dir, plan.assembly_name)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(fs_content, encoding="utf-8")
-    _print_generation_summary(output_path, results)
+    result = generate_command(
+        settings=settings,
+        plan_path=args.plan,
+        output_path=args.output,
+    )
+    _print_generation_summary(result.output_path, result.report)
     return 0
 
 
 def _run_build(args: argparse.Namespace) -> int:
     settings = _resolve_settings(args)
-    if args.plan is not None:
-        if args.requirement or args.input:
-            raise CLIError("Use either --plan or requirement text, not both.")
-        plan = load_plan_file(args.plan)
-    else:
-        requirement = _read_requirement(args.requirement, args.input)
-        plan = analyze_requirement(requirement, settings)
-
-    saved_plan_path = args.plan_output or plan_output_path(settings.output_dir, plan.assembly_name)
-    write_plan_file(plan, saved_plan_path)
-
-    results = build_generator(settings, legacy=args.legacy).generate(plan)
-    fs_content = merge_featurescript(plan, results)
-    output_path = args.output or featurescript_output_path(settings.output_dir, plan.assembly_name)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(fs_content, encoding="utf-8")
-
-    print(f"Plan saved: {saved_plan_path}")
-    _print_generation_summary(output_path, results)
+    result = build_command(
+        settings=settings,
+        requirement_text=args.requirement,
+        input_path=args.input,
+        plan_path=args.plan,
+        output_path=args.output,
+        plan_output_path=args.plan_output,
+    )
+    print(f"Plan 已写入：{result.plan_path}")
+    _print_generation_summary(result.output_path, result.report)
     return 0
 
 
 def _add_requirement_source(parser: argparse.ArgumentParser) -> None:
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("requirement", nargs="?", help="Inline requirement string.")
-    group.add_argument("--input", "-i", type=Path, help="Path to a requirement text file.")
+    group.add_argument("requirement", nargs="?", help="内联需求文本。")
+    group.add_argument("--input", "-i", type=Path, help="需求文本文件路径。")
 
 
 def _add_shared_options(
     parser: argparse.ArgumentParser,
     *,
     include_analyze: bool = True,
-    include_generate: bool = True,
 ) -> None:
-    parser.add_argument("--api-key", default=None, help="Override OPENAI_API_KEY.")
-    parser.add_argument("--base-url", default=None, help="Override OPENAI_BASE_URL.")
+    parser.add_argument("--api-key", default=None, help="覆盖环境变量中的 OPENAI_API_KEY。")
+    parser.add_argument("--base-url", default=None, help="覆盖环境变量中的 OPENAI_BASE_URL。")
+    parser.add_argument(
+        "--api-timeout-seconds",
+        type=float,
+        default=None,
+        help="覆盖环境变量中的 OPENAI_TIMEOUT_SECONDS。",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("output"),
-        help="Default output directory for generated files.",
-    )
-    parser.add_argument(
-        "--concurrency",
-        type=int,
-        default=4,
-        help="Max concurrent API calls for the legacy generator.",
+        help="默认输出目录。",
     )
     if include_analyze:
         parser.add_argument(
             "--analyze-model",
             default=None,
-            help="Model used for requirement analysis.",
+            help="需求分析阶段使用的模型。",
         )
-    if include_generate:
         parser.add_argument(
-            "--generate-model",
+            "--analyze-max-tokens",
+            type=int,
             default=None,
-            help="Model used by the legacy FeatureScript generator.",
+            help="需求分析阶段的最大输出 token 数。",
         )
-
-
-def _add_generator_mode_option(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--legacy",
-        action="store_true",
-        help="Use the temporary LLM generator instead of deterministic templates.",
-    )
 
 
 def _resolve_settings(
     args: argparse.Namespace,
     *,
     include_analyze: bool = True,
-    include_generate: bool = True,
 ) -> Settings:
+    load_project_env()
     return Settings.from_sources(
         api_key=getattr(args, "api_key", None),
         base_url=getattr(args, "base_url", None),
+        api_timeout_seconds=getattr(args, "api_timeout_seconds", None),
         analyze_model=getattr(args, "analyze_model", None) if include_analyze else None,
-        generate_model=getattr(args, "generate_model", None) if include_generate else None,
-        concurrency=getattr(args, "concurrency", 4),
+        analyze_max_tokens=getattr(args, "analyze_max_tokens", None) if include_analyze else None,
         output_dir=getattr(args, "output_dir", Path("output")),
     )
 
 
-def _read_requirement(raw_requirement: str | None, input_path: Path | None) -> str:
-    if raw_requirement and input_path:
-        raise CLIError("Use either inline requirement text or --input, not both.")
-    if input_path is not None:
-        try:
-            requirement = input_path.read_text(encoding="utf-8").strip()
-        except FileNotFoundError as exc:
-            raise CLIError(f"Requirement file not found: {input_path}") from exc
-    else:
-        requirement = (raw_requirement or "").strip()
-
-    if not requirement:
-        raise CLIError("Requirement text is required. Pass inline text or --input FILE.")
-    return requirement
-
-
-def _print_generation_summary(output_path: Path, results: list[PartResult]) -> None:
-    failed = count_failed_parts(results)
-    succeeded = len(results) - failed
-    print(f"FeatureScript written: {output_path}")
-    print(f"Parts generated: {succeeded}/{len(results)}")
+def _print_generation_summary(output_path: Path, report: GenerationReport) -> None:
+    print(f"FeatureScript 已写入：{output_path}")
+    print(f"零件生成结果：{report.succeeded_parts}/{report.total_parts}")
+    failed = report.failed_parts
     if failed:
-        print(f"Warning: {failed} part(s) failed and were embedded as error comments.")
+        print(f"警告：有 {failed} 个零件生成失败，已以内联错误注释写入输出文件。")

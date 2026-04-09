@@ -5,9 +5,9 @@
 当前版本是 **CLI-first 精简版**：
 
 - 保留三段式流程：`analyze -> generate -> merge`
-- Web UI、SSE、服务器部署脚本已移除
+- Web UI、服务器部署脚本和旧的 LLM 生成链路已移除
 - Step 2 默认改成 **确定性 FeatureScript 模板生成**
-- `--legacy` 只保留为兼容开关，不再是主链路
+- CLI 现在只保留稳定主链路，不再支持 `--legacy`
 
 ## 适用范围
 
@@ -37,15 +37,14 @@ cp .env.example .env
 OPENAI_API_KEY=sk-...
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # ANALYZE_MODEL=gpt-4o
+# OPENAI_TIMEOUT_SECONDS=30
 # ANALYZE_MAX_TOKENS=2048
-# GENERATE_MODEL=gpt-4o-mini
 ```
 
 说明：
 
 - `analyze` 和 `build --input ...` 需要 API key，因为要调用分析模型
 - `generate --plan ...` 和 `build --plan ...` 默认走模板生成，不需要 API key
-- 只有显式加 `--legacy` 时，Step 2 才会重新使用 LLM
 - 某些第三方兼容接口对超大 `max_tokens` 不稳定，分析阶段默认使用 `2048`，也支持通过 `ANALYZE_MAX_TOKENS` 调整
 
 ## CLI 用法
@@ -72,12 +71,6 @@ fs-builder generate --plan output/drawing_die_plan.json
 
 默认输出到 `output/<assembly_name>.fs`。
 
-如果你要回退到旧的 LLM 生成器：
-
-```bash
-fs-builder generate --plan output/drawing_die_plan.json --legacy --api-key sk-...
-```
-
 ### 4. 走完整流程
 
 ```bash
@@ -95,19 +88,20 @@ fs-builder build --input examples/drawing_die.txt
 
 ```text
 src/fs_builder/
-├── cli.py               # 新的 CLI 子命令入口
-├── settings.py          # .env 和运行配置
+├── cli.py               # CLI 参数解析与输出
+├── settings.py          # 环境变量加载与运行配置
 ├── models.py            # 强类型 plan schema
-├── analyzer.py          # Step 1: requirement -> plan
-├── generator.py         # Step 2: template generator + legacy fallback
-├── merger.py            # Step 3: merge FeatureScript
-├── paths.py             # 输出路径 sanitize
-├── plan_io.py           # plan 读写
+├── application/         # analyze / generate / build 用例编排
+├── analysis/            # provider 调用、输出解析、demo fallback
+├── generation/          # 模板渲染、合并与结果模型
+├── io/                  # plan/artifact I/O 与资源读取
+├── analyzer.py          # 兼容层
+├── generator.py         # 兼容层
+├── merger.py            # 兼容层
 ├── references/
 │   └── featurescript_guide.md
 └── prompts/
-    ├── analyze.txt
-    └── generate_legacy.txt
+    └── analyze.txt
 ```
 
 ## 设计原则
@@ -116,7 +110,8 @@ src/fs_builder/
 - CLI 和 schema 负责尽早拦截错误
 - Step 2 默认使用确定性模板，不让 LLM 自由写 FeatureScript
 - 输出路径不直接信任模型字符串
-- 旧的自由生成逻辑只保留为显式兼容路径
+- CLI 只负责参数解析和结果输出，不再直接承担业务编排
+- 分析/生成/I/O 分层后，测试可以直接覆盖核心逻辑，而不必全部绕过 CLI
 
 ## FeatureScript 教程
 
@@ -142,7 +137,10 @@ src/fs_builder/
 ## 测试
 
 ```bash
-pytest
+ruff check .
+ruff format --check .
+mypy src
+pytest --cov=fs_builder
 ```
 
 CI 也会在 GitHub Actions 里跑同样的测试。
