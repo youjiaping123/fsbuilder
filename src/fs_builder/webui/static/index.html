@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fs-builder Web UI</title>
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">fs-builder</p>
+          <h1>Feature Studio Workspace</h1>
+        </div>
+        <div class="topbar-meta">
+          <span class="pill" id="apiKeyState">检查中</span>
+          <span class="pill muted" id="modelState">模型未知</span>
+        </div>
+      </header>
+
+      <section class="statusbar">
+        <div class="status-item">
+          <span class="status-dot ok"></span>
+          <span id="summaryState">等待输入需求</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">零件</span>
+          <strong id="partCount">0</strong>
+        </div>
+        <div class="status-item">
+          <span class="status-label">关系</span>
+          <strong id="relationCount">0</strong>
+        </div>
+        <div class="status-item grow">
+          <span class="status-label">输出目录</span>
+          <strong id="outputDir">output</strong>
+        </div>
+      </section>
+
+      <main class="workspace">
+        <section class="panel panel-left">
+          <div class="panel-head">
+            <p class="panel-kicker">需求输入</p>
+            <h2>Requirement Input</h2>
+          </div>
+
+          <label class="stack">
+            <span class="field-label">需求描述</span>
+            <textarea id="requirementInput" class="text-block" placeholder="描述机械结构需求，例如：设计一个用于冷拉延模具的简单装配..."></textarea>
+          </label>
+
+          <div class="button-row">
+            <label class="file-button">
+              <input id="requirementFile" type="file" accept=".txt,text/plain" hidden />
+              导入需求 .txt
+            </label>
+            <label class="file-button subtle">
+              <input id="planFile" type="file" accept=".json,application/json" hidden />
+              导入 plan JSON
+            </label>
+          </div>
+
+          <div class="stack">
+            <span class="field-label">运行模式</span>
+            <div class="mode-grid">
+              <label class="mode-card active" data-mode="analyze">
+                <input type="radio" name="runMode" value="analyze" checked />
+                <strong>Analyze</strong>
+                <span>只分析需求并生成 plan。</span>
+              </label>
+              <label class="mode-card" data-mode="generate">
+                <input type="radio" name="runMode" value="generate" />
+                <strong>Generate</strong>
+                <span>基于当前 plan JSON 生成 FeatureScript。</span>
+              </label>
+              <label class="mode-card" data-mode="build">
+                <input type="radio" name="runMode" value="build" />
+                <strong>Full Build</strong>
+                <span>从需求到输出文件走完整链路。</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="stack">
+            <span class="field-label">快捷示例</span>
+            <div class="chips" id="exampleChips">
+              <button type="button" class="chip" data-example="cold_die">冷拉延模具</button>
+              <button type="button" class="chip" data-example="fixture">简单夹具</button>
+              <button type="button" class="chip" data-example="flange">法兰组件</button>
+            </div>
+          </div>
+
+          <div class="stack compact">
+            <label class="toggle">
+              <input id="persistToggle" type="checkbox" checked />
+              <span>将输出文件写入当前项目的 <code>output/</code> 目录</span>
+            </label>
+          </div>
+
+          <div class="button-column">
+            <button id="primaryAction" class="primary-button">执行当前模式</button>
+            <div class="button-row">
+              <button id="analyzeAction" class="secondary-button">Analyze</button>
+              <button id="generateAction" class="secondary-button">Generate</button>
+              <button id="buildAction" class="secondary-button">Build</button>
+            </div>
+          </div>
+
+          <div class="capability-box">
+            <p>Capability Boundary</p>
+            <div id="shapeList" class="shape-list"></div>
+          </div>
+        </section>
+
+        <section class="panel panel-center">
+          <div class="tabbar">
+            <button class="tab active" data-center-tab="json">JSON 方案</button>
+            <button class="tab" data-center-tab="parts">零件列表</button>
+            <button class="tab" data-center-tab="validation">校验结果</button>
+          </div>
+
+          <div class="parts-strip" id="partsStrip"></div>
+
+          <div class="panel-body">
+            <div class="center-view active" data-center-view="json">
+              <label class="stack grow">
+                <span class="field-label">当前 plan JSON</span>
+                <textarea id="planEditor" class="code-block" spellcheck="false" placeholder="Analyze 后会在这里出现 plan JSON，也可以直接粘贴现有 plan。"></textarea>
+              </label>
+            </div>
+
+            <div class="center-view" data-center-view="parts">
+              <div id="partDetails" class="detail-empty">尚未选择零件。</div>
+            </div>
+
+            <div class="center-view" data-center-view="validation">
+              <div id="validationList" class="validation-list">
+                <div class="validation-card success">
+                  <strong>等待执行</strong>
+                  <p>Analyze / Generate / Build 后会在这里显示校验结果与生成状态。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-right dark-panel">
+          <div class="tabbar dark">
+            <button class="tab active" data-right-tab="fs">FeatureScript</button>
+            <button class="tab" data-right-tab="summary">摘要</button>
+            <button class="tab" data-right-tab="logs">日志</button>
+          </div>
+
+          <div class="panel-body dark">
+            <div class="right-view active" data-right-view="fs">
+              <div class="toolbar">
+                <button id="copyFsButton" class="ghost-button">复制</button>
+                <button id="downloadFsButton" class="ghost-button">下载 .fs</button>
+              </div>
+              <textarea id="fsOutput" class="code-block dark-code" readonly placeholder="Generate 或 Build 后会在这里显示 FeatureScript 输出。"></textarea>
+            </div>
+
+            <div class="right-view" data-right-view="summary">
+              <div id="summaryCard" class="summary-card">
+                <h3>等待结果</h3>
+                <p>执行后会展示装配摘要、输出路径和生成统计。</p>
+              </div>
+            </div>
+
+            <div class="right-view" data-right-view="logs">
+              <div id="logList" class="log-list">
+                <div class="log-item">
+                  <time>--:--:--</time>
+                  <span>服务已启动，等待操作。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/assets/app.js" defer></script>
+  </body>
+</html>

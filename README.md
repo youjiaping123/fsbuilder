@@ -2,10 +2,10 @@
 
 面向毕设演示的 CLI 工具：把简单机械结构需求先分析成结构化 plan，再生成可粘贴到 Onshape Feature Studio 的 FeatureScript。
 
-当前版本是 **CLI-first 精简版**：
+当前版本是 **CLI + Local Web UI 精简版**：
 
 - 保留三段式流程：`analyze -> generate -> merge`
-- Web UI、服务器部署脚本和旧的 LLM 生成链路已移除
+- 提供一个可直接运行的本地 Web UI，服务端仍然复用 Python 主链路
 - Step 2 默认改成 **确定性 FeatureScript 模板生成**
 - CLI 现在只保留稳定主链路，不再支持 `--legacy`
 
@@ -45,6 +45,7 @@ OPENAI_API_KEY=sk-...
 
 - `analyze` 和 `build --input ...` 需要 API key，因为要调用分析模型
 - `generate --plan ...` 和 `build --plan ...` 默认走模板生成，不需要 API key
+- `serve` 命令复用同一套环境变量，本地 Web UI 的 Analyze / Build 也遵循同样规则
 - 某些第三方兼容接口对超大 `max_tokens` 不稳定，分析阶段默认使用 `2048`，也支持通过 `ANALYZE_MAX_TOKENS` 调整
 
 ## CLI 用法
@@ -84,6 +85,18 @@ fs-builder build --input examples/drawing_die.txt
 3. 调用模板生成器生成各零件代码
 4. 合并成 `output/<assembly_name>.fs`
 
+### 5. 启动本地 Web UI
+
+```bash
+fs-builder serve --host 127.0.0.1 --port 8000
+```
+
+启动后访问 `http://127.0.0.1:8000`。Web UI 提供：
+
+- Analyze：输入需求并查看结构化 plan
+- Generate：在页面里编辑当前 plan JSON 后直接生成 FeatureScript
+- Full Build：执行完整链路并把 plan / `.fs` 写入 `output/`
+
 ## 项目结构
 
 ```text
@@ -95,6 +108,7 @@ src/fs_builder/
 ├── analysis/            # provider 调用、输出解析、demo fallback
 ├── generation/          # 模板渲染、合并与结果模型
 ├── io/                  # plan/artifact I/O 与资源读取
+├── webui/               # 本地 Web UI 服务与静态资源
 ├── analyzer.py          # 兼容层
 ├── generator.py         # 兼容层
 ├── merger.py            # 兼容层
@@ -112,6 +126,7 @@ src/fs_builder/
 - 输出路径不直接信任模型字符串
 - CLI 只负责参数解析和结果输出，不再直接承担业务编排
 - 分析/生成/I/O 分层后，测试可以直接覆盖核心逻辑，而不必全部绕过 CLI
+- Web UI 不单独复制业务逻辑，而是复用同一套分析与生成服务，避免前后端行为漂移
 
 ## FeatureScript 教程
 

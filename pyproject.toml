@@ -1,6 +1,6 @@
 [project]
 name = "fs-builder"
-version = "0.3.0"
+version = "0.4.0"
 description = "CLI-first demo for natural language to Onshape FeatureScript"
 requires-python = ">=3.9"
 dependencies = [
@@ -34,6 +34,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 "fs_builder.prompts" = ["*.txt"]
 "fs_builder.references" = ["*.md"]
+"fs_builder.webui" = ["static/*.html", "static/*.css", "static/*.js", "static/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -11,6 +11,7 @@ from .application import analyze_command, build_command, generate_command, valid
 from .errors import FSBuilderError
 from .generation import GenerationReport
 from .settings import Settings, load_project_env
+from .webui import serve_web_ui
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,6 +82,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     build_parser.set_defaults(handler=_run_build)
 
+    serve_parser = subparsers.add_parser("serve", help="启动本地 Web UI。")
+    _add_shared_options(serve_parser)
+    serve_parser.add_argument("--host", default="127.0.0.1", help="监听地址。")
+    serve_parser.add_argument("--port", type=int, default=8000, help="监听端口。")
+    serve_parser.set_defaults(handler=_run_serve)
+
     return parser
 
 
@@ -138,6 +145,17 @@ def _run_build(args: argparse.Namespace) -> int:
     )
     print(f"Plan 已写入：{result.plan_path}")
     _print_generation_summary(result.output_path, result.report)
+    return 0
+
+
+def _run_serve(args: argparse.Namespace) -> int:
+    settings = _resolve_settings(args)
+    display_host = "127.0.0.1" if args.host == "0.0.0.0" else args.host
+    print(f"Web UI 已启动：http://{display_host}:{args.port}")
+    try:
+        serve_web_ui(settings, host=args.host, port=args.port)
+    except KeyboardInterrupt:
+        print("\nWeb UI 已停止。")
     return 0
 
 

@@ -89,3 +89,20 @@ def test_legacy_option_is_rejected_by_parser(tmp_path: Path, capsys) -> None:
     captured = capsys.readouterr()
     assert exc_info.value.code == 2
     assert "unrecognized arguments: --legacy" in captured.err
+
+
+def test_serve_command_starts_web_ui(monkeypatch, capsys) -> None:
+    calls: list[tuple[str, int]] = []
+
+    monkeypatch.setattr(
+        cli,
+        "serve_web_ui",
+        lambda settings, *, host, port: calls.append((host, port)),
+    )
+
+    code = cli.main(["serve", "--host", "0.0.0.0", "--port", "9000"])
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert calls == [("0.0.0.0", 9000)]
+    assert "http://127.0.0.1:9000" in captured.out

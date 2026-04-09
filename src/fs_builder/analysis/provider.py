@@ -137,6 +137,7 @@ def _post_chat_completion_raw(
                 "model": model,
                 "messages": messages,
                 "max_tokens": max_tokens,
+                "stream": True,
             },
         ) as response:
             try:

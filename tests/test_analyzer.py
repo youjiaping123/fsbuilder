@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -28,8 +29,23 @@ class _FakeChoice:
 
 
 @dataclass
+class _FakeDelta:
+    content: str | None
+
+
+@dataclass
+class _FakeStreamChoice:
+    delta: _FakeDelta
+
+
+@dataclass
 class _FakeResponse:
     choices: list[_FakeChoice]
+
+
+@dataclass
+class _FakeStreamChunk:
+    choices: list[_FakeStreamChoice]
 
 
 class _FakeCompletions:
@@ -120,6 +136,26 @@ def test_extract_response_content_supports_string_payload() -> None:
     assert extract_response_content('{"assembly_name":"ok"}') == '{"assembly_name":"ok"}'
 
 
+def test_extract_response_content_supports_completion_envelope_string() -> None:
+    payload = """
+    {
+      "id": "chatcmpl-123",
+      "object": "chat.completion",
+      "choices": [
+        {
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "{\\"assembly_name\\":\\"ok\\"}"
+          }
+        }
+      ]
+    }
+    """
+
+    assert extract_response_content(payload) == '{"assembly_name":"ok"}'
+
+
 def test_extract_response_content_supports_sse_payload() -> None:
     payload = "\n".join(
         [
@@ -141,9 +177,76 @@ def test_extract_stream_content_joins_stream_deltas() -> None:
     assert extract_stream_content(chunks) == '{"assembly_name":"ok"}'
 
 
+def test_extract_stream_content_supports_object_deltas() -> None:
+    chunks = [
+        _FakeStreamChunk(choices=[_FakeStreamChoice(delta=_FakeDelta(content="{"))]),
+        _FakeStreamChunk(
+            choices=[_FakeStreamChoice(delta=_FakeDelta(content='"assembly_name":"ok"'))]
+        ),
+        _FakeStreamChunk(choices=[_FakeStreamChoice(delta=_FakeDelta(content="}"))]),
+    ]
+
+    assert extract_stream_content(chunks) == '{"assembly_name":"ok"}'
+
+
 def test_parse_analysis_payload_rejects_invalid_json() -> None:
     with pytest.raises(AnalysisOutputParseError, match="不是有效 JSON"):
         parse_analysis_payload("```json\nnot-json\n```")
+
+
+def test_parse_analysis_payload_unwraps_completion_envelope() -> None:
+    content = (
+        '{"assembly_name":"ok","description":"demo","global_params":{},'
+        '"parts":[],"assembly_relations":[]}'
+    )
+    payload = json.dumps(
+        {
+            "id": "chatcmpl-123",
+            "object": "chat.completion",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": content,
+                    },
+                }
+            ],
+        }
+    )
+
+    assert parse_analysis_payload(payload) == {
+        "assembly_name": "ok",
+        "description": "demo",
+        "global_params": {},
+        "parts": [],
+        "assembly_relations": [],
+    }
+
+
+def test_request_analysis_content_supports_non_stream_completion_envelope() -> None:
+    content = request_analysis_content(
+        requirement="demo",
+        settings=_settings(),
+        requester=lambda **_: (
+            """
+        {
+          "id": "chatcmpl-123",
+          "object": "chat.completion",
+          "choices": [
+            {
+              "message": {
+                "role": "assistant",
+                "content": "{\\"assembly_name\\":\\"ok\\"}"
+              }
+            }
+          ]
+        }
+        """
+        ),
+    )
+
+    assert content == '{"assembly_name":"ok"}'
 
 
 def test_analyze_requirement_uses_retry_and_returns_plan() -> None:

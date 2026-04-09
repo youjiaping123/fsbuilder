@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-outline: #717c82;
+  --color-on-primary-fixed-variant: #0050d4;
+  --color-background: #f7f9fb;
+  --color-error-container: #fe8983;
+  --color-primary-fixed-dim: #c7d3ff;
+  --color-surface: #f7f9fb;
+  --color-surface-tint: #0053db;
+  --color-on-tertiary-fixed: #004e47;
+  --color-surface-container-highest: #d9e4ea;
+  --color-surface-container-high: #e1e9ee;
+  --color-inverse-surface: #0b0f10;
+  --color-tertiary-container: #91feef;
+  --color-on-tertiary: #e2fff9;
+  --color-on-error: #fff7f6;
+  --color-outline-variant: #a9b4b9;
+  --color-on-secondary: #f8f8ff;
+  --color-on-secondary-container: #455367;
+  --color-tertiary-dim: #005e56;
+  --color-on-background: #2a3439;
+  --color-surface-container-lowest: #ffffff;
+  --color-secondary-dim: #465468;
+  --color-on-error-container: #752121;
+  --color-primary: #0053db;
+  --color-on-secondary-fixed: #324053;
+  --color-on-surface: #2a3439;
+  --color-error: #9f403d;
+  --color-on-tertiary-container: #006259;
+  --color-tertiary-fixed-dim: #83efe1;
+  --color-inverse-primary: #618bff;
+  --color-error-dim: #4e0309;
+  --color-secondary-fixed: #d5e3fc;
+  --color-tertiary-fixed: #91feef;
+  --color-primary-container: #dbe1ff;
+  --color-on-surface-variant: #566166;
+  --color-primary-fixed: #dbe1ff;
+  --color-surface-container: #e8eff3;
+  --color-surface-bright: #f7f9fb;
+  --color-surface-variant: #d9e4ea;
+  --color-on-tertiary-fixed-variant: #006d64;
+  --color-on-primary-fixed: #003798;
+  --color-primary-dim: #0048c1;
+  --color-on-secondary-fixed-variant: #4e5c71;
+  --color-secondary: #526074;
+  --color-secondary-fixed-dim: #c7d5ed;
+  --color-secondary-container: #d5e3fc;
+  --color-tertiary: #006b62;
+  --color-on-primary-container: #0048bf;
+  --color-inverse-on-surface: #9a9d9f;
+  --color-on-primary: #f8f7ff;
+  --color-surface-container-low: #f0f4f7;
+  --color-surface-dim: #cfdce3;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+  }
+}
