@@ -87,3 +87,25 @@ def test_unsupported_shape_fails() -> None:
     data["parts"][0]["shape"] = "plate"
     with pytest.raises(PlanValidationError):
         validate_plan_data(data)
+
+
+def test_tapered_cylinder_requires_stable_param_set() -> None:
+    data = make_plan_data()
+    data["parts"][1] = {
+        "id": "tapered_post",
+        "name": "Tapered Post",
+        "shape": "tapered_cylinder",
+        "material_hint": "steel",
+        "params": {
+            "bottom_diameter_mm": 40,
+            "height_mm": 50,
+        },
+        "position": {
+            "x_mm": 0,
+            "y_mm": 0,
+            "z_bottom_mm": 20,
+        },
+        "description": "Missing top diameter on purpose.",
+    }
+    with pytest.raises(PlanValidationError):
+        validate_plan_data(data)

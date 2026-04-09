@@ -4,24 +4,9 @@ import json
 from pathlib import Path
 
 from fs_builder import cli
-from fs_builder.generator import PartResult
 from fs_builder.models import validate_plan_data
 from fs_builder.plan_io import write_plan_file
 from tests.test_models import make_plan_data
-
-
-class DummyGenerator:
-    def __init__(self, settings) -> None:
-        self.settings = settings
-
-    def generate(self, plan):
-        return [
-            PartResult(
-                part_id=plan.parts[0].id,
-                part_name=plan.parts[0].name,
-                code="var body = 1;",
-            )
-        ]
 
 
 def test_analyze_input_outputs_json(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -30,7 +15,7 @@ def test_analyze_input_outputs_json(monkeypatch, tmp_path: Path, capsys) -> None
     plan = validate_plan_data(make_plan_data())
     monkeypatch.setattr(cli, "analyze_requirement", lambda requirement, settings: plan)
 
-    code = cli.main(["analyze", "--input", str(input_path), "--api-key", "sk-test"])
+    code = cli.main(["analyze", "--input", str(input_path)])
 
     captured = capsys.readouterr()
     assert code == 0
@@ -39,14 +24,12 @@ def test_analyze_input_outputs_json(monkeypatch, tmp_path: Path, capsys) -> None
 
 
 def test_build_plan_skips_analysis_and_writes_outputs(
-    monkeypatch,
     tmp_path: Path,
     capsys,
 ) -> None:
     plan = validate_plan_data(make_plan_data())
     plan_path = tmp_path / "demo_plan.json"
     write_plan_file(plan, plan_path)
-    monkeypatch.setattr(cli, "LegacyLLMGenerator", DummyGenerator)
 
     output_dir = tmp_path / "artifacts"
     code = cli.main(
@@ -54,8 +37,6 @@ def test_build_plan_skips_analysis_and_writes_outputs(
             "build",
             "--plan",
             str(plan_path),
-            "--api-key",
-            "sk-test",
             "--output-dir",
             str(output_dir),
         ]
@@ -68,12 +49,25 @@ def test_build_plan_skips_analysis_and_writes_outputs(
     assert "Plan saved:" in captured.out
 
 
-def test_generate_requires_api_key(tmp_path: Path, capsys) -> None:
+def test_generate_uses_templates_without_api_key(tmp_path: Path, capsys) -> None:
     plan = validate_plan_data(make_plan_data())
     plan_path = tmp_path / "demo_plan.json"
     write_plan_file(plan, plan_path)
 
-    code = cli.main(["generate", "--plan", str(plan_path)])
+    code = cli.main(["generate", "--plan", str(plan_path), "--output-dir", str(tmp_path)])
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "FeatureScript written:" in captured.out
+
+
+def test_generate_legacy_requires_api_key(monkeypatch, tmp_path: Path, capsys) -> None:
+    plan = validate_plan_data(make_plan_data())
+    plan_path = tmp_path / "demo_plan.json"
+    write_plan_file(plan, plan_path)
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+
+    code = cli.main(["generate", "--plan", str(plan_path), "--legacy"])
 
     captured = capsys.readouterr()
     assert code == 2

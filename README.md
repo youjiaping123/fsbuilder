@@ -6,8 +6,8 @@
 
 - 保留三段式流程：`analyze -> generate -> merge`
 - Web UI、SSE、服务器部署脚本已移除
-- Step 2 仍然是 **legacy LLM 生成器**，只是过渡方案
-- 后续会替换成你提供资料后的 FeatureScript 模板生成
+- Step 2 默认改成 **确定性 FeatureScript 模板生成**
+- `--legacy` 只保留为兼容开关，不再是主链路
 
 ## 适用范围
 
@@ -37,8 +37,16 @@ cp .env.example .env
 OPENAI_API_KEY=sk-...
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # ANALYZE_MODEL=gpt-4o
+# ANALYZE_MAX_TOKENS=2048
 # GENERATE_MODEL=gpt-4o-mini
 ```
+
+说明：
+
+- `analyze` 和 `build --input ...` 需要 API key，因为要调用分析模型
+- `generate --plan ...` 和 `build --plan ...` 默认走模板生成，不需要 API key
+- 只有显式加 `--legacy` 时，Step 2 才会重新使用 LLM
+- 某些第三方兼容接口对超大 `max_tokens` 不稳定，分析阶段默认使用 `2048`，也支持通过 `ANALYZE_MAX_TOKENS` 调整
 
 ## CLI 用法
 
@@ -64,6 +72,12 @@ fs-builder generate --plan output/drawing_die_plan.json
 
 默认输出到 `output/<assembly_name>.fs`。
 
+如果你要回退到旧的 LLM 生成器：
+
+```bash
+fs-builder generate --plan output/drawing_die_plan.json --legacy --api-key sk-...
+```
+
 ### 4. 走完整流程
 
 ```bash
@@ -74,7 +88,7 @@ fs-builder build --input examples/drawing_die.txt
 
 1. 调用分析器生成并校验 plan
 2. 把 plan 保存到 `output/<assembly_name>_plan.json`
-3. 调用 legacy 生成器生成各零件代码
+3. 调用模板生成器生成各零件代码
 4. 合并成 `output/<assembly_name>.fs`
 
 ## 项目结构
@@ -85,10 +99,12 @@ src/fs_builder/
 ├── settings.py          # .env 和运行配置
 ├── models.py            # 强类型 plan schema
 ├── analyzer.py          # Step 1: requirement -> plan
-├── generator.py         # Step 2: legacy LLM generator
+├── generator.py         # Step 2: template generator + legacy fallback
 ├── merger.py            # Step 3: merge FeatureScript
 ├── paths.py             # 输出路径 sanitize
 ├── plan_io.py           # plan 读写
+├── references/
+│   └── featurescript_guide.md
 └── prompts/
     ├── analyze.txt
     └── generate_legacy.txt
@@ -98,14 +114,29 @@ src/fs_builder/
 
 - AI 先负责把需求变成结构化 plan
 - CLI 和 schema 负责尽早拦截错误
+- Step 2 默认使用确定性模板，不让 LLM 自由写 FeatureScript
 - 输出路径不直接信任模型字符串
-- 旧的自由生成逻辑先保留，但明确标记为临时实现
+- 旧的自由生成逻辑只保留为显式兼容路径
+
+## FeatureScript 教程
+
+项目内置了一份中文教程，供后续模板开发和调试直接参考：
+
+- `src/fs_builder/references/featurescript_guide.md`
+
+它固定了本项目的写法规范，包括：
+
+- `defineFeature` 的基本结构
+- 单位和 `ValueWithUnits`
+- `Context` / `Query` / `op*`
+- `newSketchOnPlane -> sk* -> skSolve -> op*` 的模板路线
+- 当前 5 个 shape 的建模映射
 
 ## 已知限制
 
-- 当前不是模板生成版，FeatureScript 输出仍然依赖 LLM，稳定性有限
+- 当前模板只覆盖 5 种基础 shape
 - 还不支持复杂装配约束求解
-- 还不支持 Web 演示界面
+- 还不支持孔、倒角、圆角等更复杂特征
 - 还没有接入 Onshape 编译验证闭环
 
 ## 测试

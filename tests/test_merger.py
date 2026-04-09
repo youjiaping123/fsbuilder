@@ -23,4 +23,6 @@ def test_merge_keeps_order_and_embeds_errors() -> None:
     assert "Base Block (base_block)" in merged
     assert "var base = 1;" in merged
     assert "Part 'center_boss' failed: mock failure" in merged
-    assert merged.index("Base Block") < merged.index("center_boss")
+    assert merged.index("// ── Base Block (base_block)") < merged.index(
+        "// [ERROR] Part 'center_boss' (Center Boss) failed to generate:"
+    )

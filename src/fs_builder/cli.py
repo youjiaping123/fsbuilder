@@ -9,9 +9,8 @@ from typing import Sequence
 
 from .analyzer import analyze_requirement
 from .errors import CLIError, FSBuilderError
-from .generator import LegacyLLMGenerator, count_failed_parts
+from .generator import PartResult, build_generator, count_failed_parts
 from .merger import merge_featurescript
-from .models import AssemblyPlan
 from .paths import featurescript_output_path, plan_output_path
 from .plan_io import load_plan_file, write_plan_file
 from .settings import Settings
@@ -41,10 +40,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     generate_parser = subparsers.add_parser(
         "generate",
-        help="Run the legacy LLM generator and merge a FeatureScript file from a plan.",
+        help="Generate FeatureScript from a validated plan using deterministic templates by default.",
     )
     generate_parser.add_argument("--plan", type=Path, required=True, help="Path to a validated plan JSON file.")
     _add_shared_options(generate_parser, include_analyze=False)
+    _add_generator_mode_option(generate_parser)
     generate_parser.add_argument(
         "--output",
         type=Path,
@@ -55,12 +55,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     build_parser = subparsers.add_parser(
         "build",
-        help="Analyze or load a plan, then run the legacy generator and merger.",
+        help="Analyze or load a plan, then generate and merge a FeatureScript file.",
     )
     build_parser.add_argument("requirement", nargs="?", help="Inline requirement string.")
     build_parser.add_argument("--input", "-i", type=Path, help="Path to a requirement text file.")
     build_parser.add_argument("--plan", type=Path, default=None, help="Skip analysis and load a plan file.")
     _add_shared_options(build_parser)
+    _add_generator_mode_option(build_parser)
     build_parser.add_argument(
         "--output",
         type=Path,
@@ -109,7 +110,7 @@ def _run_validate_plan(args: argparse.Namespace) -> int:
 def _run_generate(args: argparse.Namespace) -> int:
     settings = _resolve_settings(args, include_analyze=False)
     plan = load_plan_file(args.plan)
-    results = LegacyLLMGenerator(settings).generate(plan)
+    results = build_generator(settings, legacy=args.legacy).generate(plan)
     fs_content = merge_featurescript(plan, results)
     output_path = args.output or featurescript_output_path(settings.output_dir, plan.assembly_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,7 +132,7 @@ def _run_build(args: argparse.Namespace) -> int:
     saved_plan_path = args.plan_output or plan_output_path(settings.output_dir, plan.assembly_name)
     write_plan_file(plan, saved_plan_path)
 
-    results = LegacyLLMGenerator(settings).generate(plan)
+    results = build_generator(settings, legacy=args.legacy).generate(plan)
     fs_content = merge_featurescript(plan, results)
     output_path = args.output or featurescript_output_path(settings.output_dir, plan.assembly_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -182,6 +183,14 @@ def _add_shared_options(
         )
 
 
+def _add_generator_mode_option(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--legacy",
+        action="store_true",
+        help="Use the temporary LLM generator instead of deterministic templates.",
+    )
+
+
 def _resolve_settings(
     args: argparse.Namespace,
     *,
@@ -214,7 +223,7 @@ def _read_requirement(raw_requirement: str | None, input_path: Path | None) -> s
     return requirement
 
 
-def _print_generation_summary(output_path: Path, results: list) -> None:
+def _print_generation_summary(output_path: Path, results: list[PartResult]) -> None:
     failed = count_failed_parts(results)
     succeeded = len(results) - failed
     print(f"FeatureScript written: {output_path}")
