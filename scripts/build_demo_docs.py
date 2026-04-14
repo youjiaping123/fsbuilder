@@ -11,7 +11,6 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Inches, Pt
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TMP_DIR = ROOT / "tmp" / "docs"
 OUTPUT_DIR = ROOT / "output" / "doc"
@@ -40,7 +39,14 @@ META = {
 }
 
 
-def set_run_font(run, size_pt: float, *, bold: bool = False, east_asia: str = "宋体", latin: str = "Times New Roman") -> None:
+def set_run_font(
+    run,
+    size_pt: float,
+    *,
+    bold: bool = False,
+    east_asia: str = "宋体",
+    latin: str = "Times New Roman",
+) -> None:
     run.bold = bold
     run.font.size = Pt(size_pt)
     run.font.name = latin
@@ -229,13 +235,19 @@ def normalize_latex_text(text: str) -> str:
 def parse_keywords(main_tex_text: str) -> tuple[str, str]:
     cn_match = re.search(r"\\noindent\\textbf\{关键词：\}\s*([^\n]+)", main_tex_text)
     en_match = re.search(r"\\noindent\\textbf\{Keywords:\}\s*([^\n]+)", main_tex_text)
-    keywords_cn = normalize_latex_text(cn_match.group(1)) if cn_match else "自然语言建模；参数化 CAD；FeatureScript；大语言模型；系统设计与实现"
-    keywords_en = normalize_latex_text(en_match.group(1)) if en_match else "natural language modeling; parametric CAD; FeatureScript; large language model; system implementation"
+    default_keywords_cn = "自然语言建模；参数化 CAD；FeatureScript；大语言模型；系统设计与实现"
+    default_keywords_en = (
+        "natural language modeling; parametric CAD; FeatureScript; "
+        "large language model; system implementation"
+    )
+    keywords_cn = normalize_latex_text(cn_match.group(1)) if cn_match else default_keywords_cn
+    keywords_en = normalize_latex_text(en_match.group(1)) if en_match else default_keywords_en
     return keywords_cn, keywords_en
 
 
 def parse_appendix(main_tex_text: str) -> tuple[str, str]:
-    match = re.search(r"\\appendix\s*\\section\{([^}]*)\}\s*(.*?)\s*\\end\{document\}", main_tex_text, re.S)
+    appendix_pattern = r"\\appendix\s*\\section\{([^}]*)\}\s*(.*?)\s*\\end\{document\}"
+    match = re.search(appendix_pattern, main_tex_text, re.S)
     if not match:
         return "", ""
     return normalize_latex_text(match.group(1)), normalize_latex_text(match.group(2))
@@ -243,7 +255,8 @@ def parse_appendix(main_tex_text: str) -> tuple[str, str]:
 
 def parse_references(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
-    matches = re.findall(r"\\bibitem\{[^}]+\}\s*(.*?)(?=\\bibitem\{|\\end\{thebibliography\})", text, re.S)
+    reference_pattern = r"\\bibitem\{[^}]+\}\s*(.*?)(?=\\bibitem\{|\\end\{thebibliography\})"
+    matches = re.findall(reference_pattern, text, re.S)
     return [normalize_latex_text(" ".join(item.splitlines())) for item in matches]
 
 
@@ -327,7 +340,19 @@ def parse_section_blocks(path: Path) -> list[tuple[str, object]]:
             env_caption = ""
             continue
 
-        if line.startswith((r"\label{", r"\centering", r"\resizebox", r"\includegraphics", r"\input{", r"\toprule", r"\midrule", r"\bottomrule", r"\caption{")):
+        if line.startswith(
+            (
+                r"\label{",
+                r"\centering",
+                r"\resizebox",
+                r"\includegraphics",
+                r"\input{",
+                r"\toprule",
+                r"\midrule",
+                r"\bottomrule",
+                r"\caption{",
+            )
+        ):
             continue
 
         if in_enum:
@@ -360,8 +385,12 @@ def load_latex_payload() -> dict[str, object]:
         blocks.extend(parse_section_blocks(SECTIONS_DIR / name))
 
     return {
-        "abstract_cn": normalize_latex_text((SECTIONS_DIR / "00_abstract_cn.tex").read_text(encoding="utf-8")),
-        "abstract_en": normalize_latex_text((SECTIONS_DIR / "01_abstract_en.tex").read_text(encoding="utf-8")),
+        "abstract_cn": normalize_latex_text(
+            (SECTIONS_DIR / "00_abstract_cn.tex").read_text(encoding="utf-8")
+        ),
+        "abstract_en": normalize_latex_text(
+            (SECTIONS_DIR / "01_abstract_en.tex").read_text(encoding="utf-8")
+        ),
         "keywords_cn": keywords_cn,
         "keywords_en": keywords_en,
         "blocks": blocks,
@@ -598,11 +627,15 @@ def add_manual_body(doc: Document) -> None:
     sections = [
         (
             "一、项目概述",
-            "本作品以自然语言驱动参数化 CAD 生成系统为主题，目标是在简单机械结构场景中，将文本需求转换为结构化装配 Plan，并进一步生成可用于 Onshape Feature Studio 的 FeatureScript 脚本。",
+            "本作品以自然语言驱动参数化 CAD 生成系统为主题，目标是在简单机械结构场景中，"
+            "将文本需求转换为结构化装配 Plan，并进一步生成可用于 Onshape Feature Studio "
+            "的 FeatureScript 脚本。",
         ),
         (
             "二、设计思路",
-            "系统采用“需求分析、Plan 校验、确定性脚本生成”的三级链路。前端允许自然语言自由描述，后端通过强类型中间表示约束输入，再以确定性模板生成脚本，以平衡语义灵活性和工程可控性。",
+            "系统采用“需求分析、Plan 校验、确定性脚本生成”的三级链路。前端允许自然语言"
+            "自由描述，后端通过强类型中间表示约束输入，再以确定性模板生成脚本，以平衡语义"
+            "灵活性和工程可控性。",
         ),
         (
             "三、主要文件结构",
@@ -610,15 +643,19 @@ def add_manual_body(doc: Document) -> None:
         ),
         (
             "四、运行与验证",
-            "项目支持命令行和本地 Web UI 两种运行方式。论文主稿位于 docs/latex_paper 目录，核心验证结果为 50 项自动化测试全部通过、总代码覆盖率 82%，冷拉延模具样例实现 5/5 零件成功生成。",
+            "项目支持命令行和本地 Web UI 两种运行方式。论文主稿位于 docs/latex_paper "
+            "目录，核心验证结果为 50 项自动化测试全部通过、总代码覆盖率 82%，冷拉延模具"
+            "样例实现 5/5 零件成功生成。",
         ),
         (
             "五、交付物说明",
-            "本次交付包括 demo 模板副本、根据模板重新灌入 latex_paper 内容生成的毕业设计论文最终稿，以及毕业设计作品说明书最终稿。",
+            "本次交付包括 demo 模板副本、根据模板重新灌入 latex_paper 内容生成的毕业设计"
+            "论文最终稿，以及毕业设计作品说明书最终稿。",
         ),
         (
             "六、已知限制",
-            "系统尚未接入 Onshape 在线编译验证闭环；当前仅支持五种基础零件形状；说明书与论文中的目录页码在 Word 或 WPS 中首次打开后建议手动更新域。",
+            "系统尚未接入 Onshape 在线编译验证闭环；当前仅支持五种基础零件形状；说明书与"
+            "论文中的目录页码在 Word 或 WPS 中首次打开后建议手动更新域。",
         ),
     ]
 

@@ -4,7 +4,6 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-
 DATA = [
     ("Models", 91),
     ("Analysis Parsing", 83),
@@ -37,7 +36,6 @@ def main() -> None:
     margin_left = 280
     margin_right = 80
     margin_top = 90
-    margin_bottom = 70
     bar_gap = 18
     bar_height = 46
     chart_width = width - margin_left - margin_right
@@ -49,7 +47,12 @@ def main() -> None:
     label_font = _font(24)
     tick_font = _font(20)
 
-    draw.text((margin_left, 24), "Module-level Coverage from the Current Test Report", fill="#1f2937", font=title_font)
+    draw.text(
+        (margin_left, 24),
+        "Module-level Coverage from the Current Test Report",
+        fill="#1f2937",
+        font=title_font,
+    )
 
     chart_top = margin_top
     chart_bottom = chart_top + len(DATA) * (bar_height + bar_gap) - bar_gap
@@ -73,7 +76,12 @@ def main() -> None:
             outline="#254B6E",
             width=2,
         )
-        draw.text((margin_left + bar_len + 12, y + 8), f"{value}%", fill="#111827", font=label_font)
+        draw.text(
+            (margin_left + bar_len + 12, y + 8),
+            f"{value}%",
+            fill="#111827",
+            font=label_font,
+        )
         y += bar_height + bar_gap
 
     output_dir = Path(__file__).parent

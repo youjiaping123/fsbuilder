@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 DATA = [
     ("Models", 91),
     ("Analysis Parsing", 83),
