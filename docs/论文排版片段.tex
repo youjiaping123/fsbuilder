@@ -1,0 +1,30 @@
+\section*{Abstract}
+Conventional 3D CAD workflows require substantial modeling expertise, which keeps educational demonstrations, course projects, and simple fixture-oriented tasks dependent on manual operations and creates a large gap between textual requirements and executable geometric artifacts. Although natural-language-driven modeling has become increasingly feasible with large language models, directly generating CAD scripts from unconstrained model outputs often fails to ensure syntactic correctness, geometric consistency, and engineering verifiability. This thesis presents \texttt{fs-builder}, a natural-language-driven parametric CAD generation system for simple mechanical structures, built on a three-stage pipeline that combines requirement analysis, typed assembly-plan validation, and deterministic FeatureScript template generation, with both a command-line interface and a local Web UI. The current implementation supports five primitive part shapes; empirical validation shows 50 passing automated tests with 82\% code coverage, and in a cold drawing die example the system identifies five major parts and four assembly relations and successfully generates code for all five parts. The distinctive contribution of this work lies in an engineering-oriented design path for educational and prototyping scenarios, where large language models are restricted to semantic interpretation, strongly typed intermediate representations enforce structural constraints, and deterministic templates guarantee controllable CAD-script generation.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.88\linewidth]{figures/system_pipeline.pdf}
+  \caption{Overall pipeline of \texttt{fs-builder}. Natural-language requirements are first converted into a constrained assembly plan, then validated by a typed schema, and finally translated into deterministic FeatureScript code.}
+  \label{fig:system-pipeline}
+\end{figure}
+
+\begin{table}[t]
+  \centering
+  \caption{Core validation results of the current system implementation.}
+  \label{tab:main-results}
+  \begin{tabular}{lcc}
+    \toprule
+    Item & Value & Note \\
+    \midrule
+    Passing tests & 50 & Local automated test suite \\
+    Code coverage & 82\% & \texttt{pytest --cov} result \\
+    Supported shapes & 5 & box, cylinder, hollow\_cylinder, tapered\_cylinder, flange \\
+    Sample generation success & 5/5 & Cold drawing die example \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% Reference management note:
+% 1. Keep venue names and proceedings names in italics.
+% 2. Do not mix arXiv-style and APA-style punctuation in the same bibliography.
+% 3. If DOI is unavailable, keep a stable URL and mark missing metadata as TODO instead of fabricating it.

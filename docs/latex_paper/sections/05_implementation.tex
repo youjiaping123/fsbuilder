@@ -1,0 +1,46 @@
+\section{系统详细实现}
+
+\subsection{需求分析模块实现}
+
+需求分析模块位于 \texttt{src/fs\_builder/analysis} 目录下，主要由请求适配、返回解析、异常处理和兜底方案组成。
+
+系统预置了分析提示词，明确要求模型输出唯一合法 JSON，禁止返回说明文字与 Markdown 包裹。提示词中还定义了五种允许的零件形状、各形状必需的参数字段以及装配关系类型。这种约束设计的目的在于缩小模型输出空间，并降低后处理复杂度。
+
+在请求实现上，系统支持通过 OpenAI 兼容接口发起流式分析请求，并允许配置模型名、超时时间和最大 token 数。为提高鲁棒性，模块设计了多轮 token 尝试和空内容重试机制；当接口返回空响应时，系统会降低最大 token 再次尝试，而不是立即失败。
+
+为保证本地展示体验，分析模块还实现了一个仅针对仓库内置样例的 fallback 机制。以冷拉延模具示例为例，即使未配置 API Key，系统仍可基于文本中的关键尺寸规则生成一个演示用 Plan。这一机制并不面向通用需求，而是服务于课程答辩和项目展示。
+
+\subsection{Plan 校验模块实现}
+
+Plan 校验是整套系统可靠性的关键。系统使用统一的强类型模型完成命名约束、形状约束、参数约束、数值约束和关系约束。例如，\texttt{flange} 要求法兰直径必须大于轴直径，\texttt{tapered\_cylinder} 必须同时提供顶部直径、底部直径和高度。通过这些规则，系统能够在 FeatureScript 生成前拦截大多数结构性错误。
+
+\subsection{确定性脚本生成模块实现}
+
+与许多直接让模型生成代码的方案不同，本文系统的生成阶段完全采用确定性模板。\texttt{generation/renderers.py} 中为每种零件形状实现了专用渲染器：
+\begin{enumerate}[leftmargin=2em]
+  \item \texttt{box} 映射为立方体特征；
+  \item \texttt{cylinder} 映射为圆柱体特征；
+  \item \texttt{hollow\_cylinder} 通过外圆柱减内圆柱实现；
+  \item \texttt{tapered\_cylinder} 通过锥台几何实现；
+  \item \texttt{flange} 通过法兰体与轴体的并集实现。
+\end{enumerate}
+
+每个渲染器只关心本类零件的参数提取与几何表达。由于这些逻辑完全由程序控制，因此输出结果具有较高稳定性。生成模块还设计了错误隔离机制：当某个零件生成失败时，系统会记录失败信息而不是立即中断整体输出，最终在结果脚本中以内联注释形式保留错误原因。
+
+\subsection{脚本合并与输出实现}
+
+在局部零件代码片段生成后，系统会统一组装为标准 FeatureScript 文件。输出文件头包含生成时间、装配体名称和简要描述；主体部分则按零件顺序依次插入代码块。对成功零件，会保留可读的名称注释与实体命名；对失败零件，会输出错误提示注释。
+
+这种设计的优点在于，最终产物既是程序生成结果，也保留人工可读和可修改性。
+
+\subsection{CLI 与应用层实现}
+
+应用层 \texttt{use\_cases.py} 将系统能力封装为四类核心用例：\texttt{analyze\_command}、\texttt{validate\_plan\_command}、\texttt{generate\_command} 和 \texttt{build\_command}。CLI 层仅负责参数解析与错误输出，不直接处理业务逻辑，从而降低了命令入口与系统核心逻辑的耦合程度。
+
+这种设计使自动化测试可以直接针对应用层调用，而不必全部通过子进程方式驱动 CLI，同时也便于 Web UI 复用同类能力。
+
+\subsection{Web UI 实现}
+
+系统 Web UI 采用 Python 标准库中的 \texttt{ThreadingHTTPServer} 提供本地 HTTP 服务，前端部分由静态 HTML、CSS 和 JavaScript 构成。用户可以选择 Analyze、Generate 或 Full Build 三种运行模式，并直接查看结果摘要。
+
+相较于额外引入复杂 Web 框架，这种实现方式更轻量，便于本地答辩演示和部署。Web UI 通过 \texttt{WebUIService} 直接复用后端分析与生成能力，从而保证界面与命令行结果一致。

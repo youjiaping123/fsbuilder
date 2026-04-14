@@ -1,0 +1,15 @@
+flowchart TD
+    A[自然语言需求输入] --> B[需求分析模块]
+    B --> C{输出是否为合法 JSON}
+    C -- 否 --> D[重试与异常处理]
+    D --> E{是否命中内置示例}
+    E -- 是 --> F[Fallback 规则生成 Plan]
+    E -- 否 --> G[返回分析错误]
+    C -- 是 --> H[解析为 AssemblyPlan]
+    F --> H
+    H --> I{Schema 校验通过?}
+    I -- 否 --> J[返回 Plan 校验错误]
+    I -- 是 --> K[确定性模板生成]
+    K --> L[合并 FeatureScript 代码]
+    L --> M[输出 Plan / .fs 文件]
+    M --> N[CLI 与 Web UI 展示结果]
