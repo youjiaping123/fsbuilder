@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from fs_builder import cli
+from fs_builder.io.plans import write_plan_file
 from fs_builder.models import validate_plan_data
-from fs_builder.plan_io import write_plan_file
 from tests.test_models import make_plan_data
 
 

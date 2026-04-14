@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from importlib.resources import files
 
-from fs_builder.generator import TemplateGenerator
+from fs_builder.generation import TemplateGenerator
 from fs_builder.models import validate_plan_data
 
 

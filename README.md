@@ -104,14 +104,12 @@ src/fs_builder/
 ├── cli.py               # CLI 参数解析与输出
 ├── settings.py          # 环境变量加载与运行配置
 ├── models.py            # 强类型 plan schema
+├── errors.py            # 项目级异常定义
 ├── application/         # analyze / generate / build 用例编排
 ├── analysis/            # provider 调用、输出解析、demo fallback
 ├── generation/          # 模板渲染、合并与结果模型
 ├── io/                  # plan/artifact I/O 与资源读取
 ├── webui/               # 本地 Web UI 服务与静态资源
-├── analyzer.py          # 兼容层
-├── generator.py         # 兼容层
-├── merger.py            # 兼容层
 ├── references/
 │   └── featurescript_guide.md
 └── prompts/

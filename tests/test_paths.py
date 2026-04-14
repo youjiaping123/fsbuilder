@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fs_builder.paths import featurescript_output_path, plan_output_path, safe_slug
+from fs_builder.io.artifacts import featurescript_output_path, plan_output_path, safe_slug
 
 
 def test_safe_slug_normalizes_unsafe_values() -> None:

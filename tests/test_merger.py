@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from fs_builder.generator import PartResult
-from fs_builder.merger import merge_featurescript
+from fs_builder.generation import PartResult
+from fs_builder.generation.merge import merge_featurescript
 from fs_builder.models import validate_plan_data
 from tests.test_models import make_plan_data
 

@@ -7,9 +7,14 @@ build/
 dist/
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
 output/*
 !output/.gitkeep
 .env
 .ace-tool/
+.playwright-cli/
+tmp/
+~$*
