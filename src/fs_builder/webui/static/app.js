@@ -1,5 +1,6 @@
 const state = {
   runMode: "analyze",
+  isBusy: false,
   plan: null,
   parts: [],
   relations: [],
@@ -10,7 +11,7 @@ const state = {
   artifacts: null,
   selectedPartId: null,
   centerTab: "json",
-  rightTab: "fs",
+  rightTab: "summary",
 };
 
 const examples = {
@@ -25,11 +26,11 @@ const examples = {
 };
 
 const shapeLabels = {
-  box: "Box",
-  cylinder: "Cylinder",
-  hollow_cylinder: "Hollow Cyl",
-  tapered_cylinder: "Tapered Cyl",
-  flange: "Flange",
+  box: "长方体",
+  cylinder: "圆柱体",
+  hollow_cylinder: "空心圆柱",
+  tapered_cylinder: "锥形圆柱",
+  flange: "法兰",
 };
 
 const requirementInput = document.querySelector("#requirementInput");
@@ -43,19 +44,21 @@ const partDetails = document.querySelector("#partDetails");
 const validationList = document.querySelector("#validationList");
 const summaryCard = document.querySelector("#summaryCard");
 const logList = document.querySelector("#logList");
+const primaryAction = document.querySelector("#primaryAction");
+const actionTip = document.querySelector("#actionTip");
+const copyFsButton = document.querySelector("#copyFsButton");
+const downloadFsButton = document.querySelector("#downloadFsButton");
 
-document.querySelector("#primaryAction").addEventListener("click", () => runCurrentMode());
-document.querySelector("#analyzeAction").addEventListener("click", () => runAnalyze());
-document.querySelector("#generateAction").addEventListener("click", () => runGenerate());
-document.querySelector("#buildAction").addEventListener("click", () => runBuild());
-document.querySelector("#copyFsButton").addEventListener("click", copyFeatureScript);
-document.querySelector("#downloadFsButton").addEventListener("click", downloadFeatureScript);
+primaryAction.addEventListener("click", () => runCurrentMode());
+copyFsButton.addEventListener("click", copyFeatureScript);
+downloadFsButton.addEventListener("click", downloadFeatureScript);
 
 document.querySelectorAll("[name=runMode]").forEach((element) => {
   element.addEventListener("change", (event) => {
     state.runMode = event.target.value;
     updateModeCards();
     updatePrimaryButton();
+    syncControls();
   });
 });
 
@@ -76,8 +79,12 @@ document.querySelectorAll("[data-right-tab]").forEach((button) => {
 document.querySelectorAll("[data-example]").forEach((button) => {
   button.addEventListener("click", () => {
     requirementInput.value = examples[button.dataset.example] ?? "";
+    syncControls();
   });
 });
+
+requirementInput.addEventListener("input", syncControls);
+planEditor.addEventListener("input", syncControls);
 
 requirementFile.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
@@ -86,6 +93,7 @@ requirementFile.addEventListener("change", async (event) => {
   }
   requirementInput.value = await file.text();
   pushLog("已从文件载入需求文本。");
+  syncControls();
 });
 
 planFile.addEventListener("change", async (event) => {
@@ -97,6 +105,7 @@ planFile.addEventListener("change", async (event) => {
   state.centerTab = "json";
   updateTabs("center");
   pushLog("已从文件载入 plan JSON。");
+  syncControls();
 });
 
 bootstrap();
@@ -104,22 +113,25 @@ bootstrap();
 async function bootstrap() {
   try {
     const payload = await request("/api/state", { method: "GET" });
-    document.querySelector("#apiKeyState").textContent = payload.has_api_key ? "已配置 API Key" : "未配置 API Key";
+    document.querySelector("#apiKeyState").textContent = payload.has_api_key
+      ? "已配置 API Key"
+      : "未配置 API Key";
     document.querySelector("#apiKeyState").classList.toggle("muted", !payload.has_api_key);
-    document.querySelector("#modelState").textContent = `Analyze: ${payload.analyze_model}`;
+    document.querySelector("#modelState").textContent = `分析模型：${payload.analyze_model}`;
     document.querySelector("#outputDir").textContent = payload.output_dir;
     document.querySelector("#shapeList").innerHTML = payload.supported_shapes
-      .map((shape) => `<span>${shape}</span>`)
+      .map((shape) => `<span>${escapeHtml(shapeLabels[shape] || shape)}</span>`)
       .join("");
     pushLog("Web UI 已连接到本地服务。");
   } catch (error) {
-    pushLog(`初始化失败：${error.message}`, true);
+    pushLog(`初始化失败：${error.message}`);
     alert(error.message);
   }
   updateModeCards();
   updatePrimaryButton();
   updateTabs("center");
   updateTabs("right");
+  syncControls();
 }
 
 async function runCurrentMode() {
@@ -193,24 +205,38 @@ async function runBuild() {
 }
 
 function applyPayload(payload) {
-  state.plan = payload.plan;
-  state.parts = payload.parts;
-  state.relations = payload.relations;
-  state.validation = payload.validation;
-  state.featurescript = payload.featurescript;
-  state.logs = payload.logs ?? [];
-  state.summary = payload.summary;
-  state.artifacts = payload.artifacts;
-  state.selectedPartId = payload.parts[0]?.id ?? null;
+  const normalizedPlan = payload.plan ?? null;
+  const normalizedRelations = normalizedPlan?.assembly_relations ?? payload.relations ?? [];
+  const normalizedSummary = {
+    ...(payload.summary ?? {}),
+    assembly_name: normalizedPlan?.assembly_name ?? payload.summary?.assembly_name ?? "未命名装配",
+    description: normalizedPlan?.description ?? payload.summary?.description ?? "暂无摘要",
+    part_count: normalizedPlan?.parts?.length ?? payload.summary?.part_count ?? 0,
+    relation_count:
+      normalizedPlan?.assembly_relations?.length ?? payload.summary?.relation_count ?? 0,
+  };
 
-  planEditor.value = JSON.stringify(payload.plan, null, 2);
-  fsOutput.value = payload.featurescript || "";
+  state.plan = normalizedPlan;
+  state.parts = payload.parts ?? [];
+  state.relations = normalizedRelations;
+  state.validation = payload.validation ?? [];
+  state.featurescript = payload.featurescript ?? "";
+  state.logs = payload.logs ?? [];
+  state.summary = normalizedSummary;
+  state.artifacts = payload.artifacts ?? {};
+  if (!state.parts.some((part) => part.id === state.selectedPartId)) {
+    state.selectedPartId = state.parts[0]?.id ?? null;
+  }
+
+  planEditor.value = normalizedPlan ? JSON.stringify(normalizedPlan, null, 2) : "";
+  fsOutput.value = state.featurescript;
   renderStatus();
   renderParts();
   renderSelectedPart();
   renderValidation();
   renderSummary();
   renderLogs();
+  syncControls();
 }
 
 function renderStatus() {
@@ -222,15 +248,16 @@ function renderStatus() {
 
 function renderParts() {
   if (!state.parts.length) {
-    partsStrip.innerHTML = '<div class="detail-empty">Analyze 后会在这里显示零件导航。</div>';
+    partsStrip.innerHTML = '<div class="detail-empty">分析完成后会在这里显示零件导航。</div>';
     return;
   }
   partsStrip.innerHTML = state.parts
     .map((part) => {
       const active = part.id === state.selectedPartId ? "active" : "";
       const errorClass = part.status === "error" ? "error" : "";
+      const disabled = state.isBusy ? "disabled" : "";
       return `
-        <button class="part-card ${active} ${errorClass}" data-part-id="${part.id}">
+        <button class="part-card ${active} ${errorClass}" data-part-id="${part.id}" ${disabled}>
           <header>
             <div>
               <h3>${escapeHtml(part.name)}</h3>
@@ -277,9 +304,9 @@ function renderSelectedPart() {
     .map(
       (item) => `
         <div class="relation-row">
-          <strong>${escapeHtml(item.child_id)}</strong>
-          <span> ${escapeHtml(item.relation)} </span>
-          <strong>${escapeHtml(item.parent_id)}</strong>
+          <span class="relation-label">子件：${escapeHtml(item.child_id)}</span>
+          <span class="relation-label">关系：${escapeHtml(item.relation)}</span>
+          <span class="relation-label">父件：${escapeHtml(item.parent_id)}</span>
         </div>
       `,
     )
@@ -291,15 +318,15 @@ function renderSelectedPart() {
       <p>${escapeHtml(part.description)}</p>
       <div class="detail-grid">
         <div class="detail-block">
-          <strong>Shape</strong>
+          <strong>形状</strong>
           <span>${escapeHtml(shapeLabels[part.shape] || part.shape)}</span>
         </div>
         <div class="detail-block">
-          <strong>Material</strong>
+          <strong>材料</strong>
           <span>${escapeHtml(part.material_hint)}</span>
         </div>
         <div class="detail-block">
-          <strong>Status</strong>
+          <strong>状态</strong>
           <span>${part.status === "error" ? "生成失败" : "正常"}</span>
         </div>
       </div>
@@ -308,15 +335,15 @@ function renderSelectedPart() {
       </div>
       <div class="detail-grid">
         <div class="detail-block">
-          <strong>X</strong>
+          <strong>X 坐标</strong>
           <code>${Number(part.position.x_mm).toFixed(2)} mm</code>
         </div>
         <div class="detail-block">
-          <strong>Y</strong>
+          <strong>Y 坐标</strong>
           <code>${Number(part.position.y_mm).toFixed(2)} mm</code>
         </div>
         <div class="detail-block">
-          <strong>Z Bottom</strong>
+          <strong>Z 底面</strong>
           <code>${Number(part.position.z_bottom_mm).toFixed(2)} mm</code>
         </div>
       </div>
@@ -350,25 +377,25 @@ function renderSummary() {
     <p>${escapeHtml(state.summary.description)}</p>
     <div class="summary-grid">
       <div class="summary-stat">
-        <strong>Part Count</strong>
+        <strong>零件数量</strong>
         <span>${state.summary.part_count}</span>
       </div>
       <div class="summary-stat">
-        <strong>Relations</strong>
+        <strong>装配关系</strong>
         <span>${state.summary.relation_count}</span>
       </div>
       <div class="summary-stat">
-        <strong>Failed Parts</strong>
+        <strong>失败零件</strong>
         <span>${state.summary.failed_parts ?? 0}</span>
       </div>
       <div class="summary-stat">
-        <strong>Generator</strong>
-        <span>${escapeHtml(state.summary.generator ?? "analyze-only")}</span>
+        <strong>生成方式</strong>
+        <span>${escapeHtml(localizeGeneratorName(state.summary.generator))}</span>
       </div>
     </div>
     <div class="detail-list">
-      <div class="relation-row"><strong>Plan Path</strong><div>${escapeHtml(state.artifacts?.plan_path || "未落盘")}</div></div>
-      <div class="relation-row"><strong>FS Path</strong><div>${escapeHtml(state.artifacts?.featurescript_path || "未落盘")}</div></div>
+      <div class="relation-row summary-path"><strong>Plan 文件</strong><div>${escapeHtml(state.artifacts?.plan_path || "未落盘")}</div></div>
+      <div class="relation-row summary-path"><strong>脚本文件</strong><div>${escapeHtml(state.artifacts?.featurescript_path || "未落盘")}</div></div>
     </div>
   `;
 }
@@ -402,7 +429,13 @@ function updatePrimaryButton() {
     generate: "生成 FeatureScript",
     build: "执行全流程构建",
   };
-  document.querySelector("#primaryAction").textContent = labels[state.runMode];
+  const tips = {
+    analyze: "读取左侧需求文本，生成并校验结构化 plan。",
+    generate: "基于中间区域的 plan JSON，生成右侧脚本输出。",
+    build: "从需求到脚本一次跑完整条链路，适合现场演示。",
+  };
+  primaryAction.textContent = state.isBusy ? "处理中..." : labels[state.runMode];
+  actionTip.textContent = tips[state.runMode];
 }
 
 function updateTabs(side) {
@@ -443,21 +476,25 @@ async function request(url, options) {
 }
 
 async function withBusy(message, task) {
+  state.isBusy = true;
   pushLog(message);
   document.querySelector("#summaryState").textContent = message;
+  syncControls();
   try {
     await task();
   } catch (error) {
-    pushLog(error.message, true);
+    pushLog(error.message);
     alert(error.message);
+  } finally {
+    state.isBusy = false;
+    syncControls();
+    renderStatus();
+    renderParts();
   }
 }
 
 function pushLog(message) {
-  state.logs = [
-    { time: new Date().toISOString(), message },
-    ...state.logs,
-  ].slice(0, 12);
+  state.logs = [{ time: new Date().toISOString(), message }, ...state.logs].slice(0, 12);
   renderLogs();
 }
 
@@ -488,6 +525,55 @@ function downloadText(filename, content) {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function syncControls() {
+  const hasRequirement = Boolean(requirementInput.value.trim());
+  const hasPlan = Boolean(planEditor.value.trim());
+  const hasFeatureScript = Boolean(fsOutput.value.trim());
+
+  let primaryDisabled = state.isBusy;
+  if (state.runMode === "analyze" || state.runMode === "build") {
+    primaryDisabled = primaryDisabled || !hasRequirement;
+  }
+  if (state.runMode === "generate") {
+    primaryDisabled = primaryDisabled || !hasPlan;
+  }
+
+  primaryAction.disabled = primaryDisabled;
+  copyFsButton.disabled = state.isBusy || !hasFeatureScript;
+  downloadFsButton.disabled = state.isBusy || !hasFeatureScript;
+
+  requirementInput.disabled = state.isBusy;
+  planEditor.disabled = state.isBusy;
+  persistToggle.disabled = state.isBusy;
+  requirementFile.disabled = state.isBusy;
+  planFile.disabled = state.isBusy;
+
+  document.querySelectorAll("[name=runMode]").forEach((element) => {
+    element.disabled = state.isBusy;
+  });
+  document.querySelectorAll("[data-example]").forEach((button) => {
+    button.disabled = state.isBusy;
+  });
+  document.querySelectorAll("[data-center-tab], [data-right-tab]").forEach((button) => {
+    button.disabled = state.isBusy;
+  });
+  document.querySelectorAll(".file-button").forEach((element) => {
+    element.classList.toggle("disabled", state.isBusy);
+  });
+
+  updatePrimaryButton();
+}
+
+function localizeGeneratorName(value) {
+  if (!value) {
+    return "仅分析";
+  }
+  if (value === "template") {
+    return "模板生成";
+  }
+  return value;
 }
 
 function formatTime(value) {

@@ -12,7 +12,7 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">fs-builder</p>
-          <h1>Feature Studio Workspace</h1>
+          <h1>机械结构答辩演示台</h1>
         </div>
         <div class="topbar-meta">
           <span class="pill" id="apiKeyState">检查中</span>
@@ -43,7 +43,7 @@
         <section class="panel panel-left">
           <div class="panel-head">
             <p class="panel-kicker">需求输入</p>
-            <h2>Requirement Input</h2>
+            <h2>需求输入区</h2>
           </div>
 
           <label class="stack">
@@ -67,17 +67,17 @@
             <div class="mode-grid">
               <label class="mode-card active" data-mode="analyze">
                 <input type="radio" name="runMode" value="analyze" checked />
-                <strong>Analyze</strong>
+                <strong>需求分析</strong>
                 <span>只分析需求并生成 plan。</span>
               </label>
               <label class="mode-card" data-mode="generate">
                 <input type="radio" name="runMode" value="generate" />
-                <strong>Generate</strong>
+                <strong>脚本生成</strong>
                 <span>基于当前 plan JSON 生成 FeatureScript。</span>
               </label>
               <label class="mode-card" data-mode="build">
                 <input type="radio" name="runMode" value="build" />
-                <strong>Full Build</strong>
+                <strong>全流程构建</strong>
                 <span>从需求到输出文件走完整链路。</span>
               </label>
             </div>
@@ -101,15 +101,11 @@
 
           <div class="button-column">
             <button id="primaryAction" class="primary-button">执行当前模式</button>
-            <div class="button-row">
-              <button id="analyzeAction" class="secondary-button">Analyze</button>
-              <button id="generateAction" class="secondary-button">Generate</button>
-              <button id="buildAction" class="secondary-button">Build</button>
-            </div>
+            <p class="action-tip" id="actionTip">选择运行模式后，使用主按钮执行当前步骤。</p>
           </div>
 
           <div class="capability-box">
-            <p>Capability Boundary</p>
+            <p>能力边界</p>
             <div id="shapeList" class="shape-list"></div>
           </div>
         </section>
@@ -139,7 +135,7 @@
               <div id="validationList" class="validation-list">
                 <div class="validation-card success">
                   <strong>等待执行</strong>
-                  <p>Analyze / Generate / Build 后会在这里显示校验结果与生成状态。</p>
+                  <p>执行分析、生成或构建后，这里会显示校验结果与生成状态。</p>
                 </div>
               </div>
             </div>
@@ -148,21 +144,21 @@
 
         <section class="panel panel-right dark-panel">
           <div class="tabbar dark">
-            <button class="tab active" data-right-tab="fs">FeatureScript</button>
-            <button class="tab" data-right-tab="summary">摘要</button>
-            <button class="tab" data-right-tab="logs">日志</button>
+            <button class="tab active" data-right-tab="summary">结果摘要</button>
+            <button class="tab" data-right-tab="fs">脚本输出</button>
+            <button class="tab" data-right-tab="logs">运行日志</button>
           </div>
 
           <div class="panel-body dark">
-            <div class="right-view active" data-right-view="fs">
+            <div class="right-view" data-right-view="fs">
               <div class="toolbar">
                 <button id="copyFsButton" class="ghost-button">复制</button>
                 <button id="downloadFsButton" class="ghost-button">下载 .fs</button>
               </div>
-              <textarea id="fsOutput" class="code-block dark-code" readonly placeholder="Generate 或 Build 后会在这里显示 FeatureScript 输出。"></textarea>
+              <textarea id="fsOutput" class="code-block dark-code" readonly placeholder="生成或构建完成后，这里会显示 FeatureScript 输出。"></textarea>
             </div>
 
-            <div class="right-view" data-right-view="summary">
+            <div class="right-view active" data-right-view="summary">
               <div id="summaryCard" class="summary-card">
                 <h3>等待结果</h3>
                 <p>执行后会展示装配摘要、输出路径和生成统计。</p>
