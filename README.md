@@ -91,6 +91,14 @@ fs-builder build --input examples/drawing_die.txt
 fs-builder serve --host 127.0.0.1 --port 8000
 ```
 
+或者直接使用仓库内脚本：
+
+```bash
+./scripts/start_webui.sh
+# 自定义端口
+PORT=8765 ./scripts/start_webui.sh
+```
+
 启动后访问 `http://127.0.0.1:8000`。Web UI 提供：
 
 - Analyze：输入需求并查看结构化 plan
