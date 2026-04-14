@@ -72,6 +72,7 @@ class WebUIRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/build":
                 response = self.server.service.build(
                     str(payload.get("requirement", "")),
+                    plan_data=payload.get("plan"),
                     persist=bool(payload.get("persist", True)),
                 )
                 self._write_json(HTTPStatus.OK, response)

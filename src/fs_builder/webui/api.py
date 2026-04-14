@@ -80,23 +80,38 @@ class WebUIService:
             logs=logs,
         )
 
-    def build(self, requirement: str, *, persist: bool = True) -> dict[str, Any]:
+    def build(
+        self,
+        requirement: str,
+        *,
+        plan_data: object | None = None,
+        persist: bool = True,
+    ) -> dict[str, Any]:
         cleaned_requirement = requirement.strip()
-        if not cleaned_requirement:
-            raise CLIError("需求文本不能为空。")
+        if plan_data is not None:
+            plan = validate_plan_data(plan_data)
+            logs = [
+                "已执行全流程构建。",
+                "本次构建复用当前 plan，未重新分析需求。",
+            ]
+        else:
+            if not cleaned_requirement:
+                raise CLIError("需求文本不能为空，或提供可用的 plan JSON。")
+            plan = RequirementAnalyzer(self.settings).analyze(cleaned_requirement)
+            logs = [
+                "已执行全流程构建。",
+                f"分析阶段得到 {len(plan.parts)} 个零件。",
+            ]
 
-        plan = RequirementAnalyzer(self.settings).analyze(cleaned_requirement)
         report = FeatureScriptGenerator().generate_report(plan)
         plan_path = None
         fs_path = None
-        logs = [
-            "已执行全流程构建。",
-            f"分析阶段得到 {len(plan.parts)} 个零件。",
+        logs.append(
             (
                 f"生成阶段完成：{report.succeeded_parts}/{report.total_parts} 成功，"
                 f"{report.failed_parts} 个失败。"
             ),
-        ]
+        )
         if persist:
             plan_path = write_plan_file(plan, self.settings.plan_output_path(plan.assembly_name))
             fs_path = write_text_artifact(

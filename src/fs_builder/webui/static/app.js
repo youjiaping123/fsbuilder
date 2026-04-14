@@ -33,6 +33,41 @@ const shapeLabels = {
   flange: "法兰",
 };
 
+const materialLabels = {
+  steel: "钢",
+  stainless_steel: "不锈钢",
+  cast_iron: "铸铁",
+  carbide: "硬质合金",
+  aluminum: "铝",
+  brass: "黄铜",
+  bronze: "青铜",
+  plastic: "塑料",
+};
+
+const relationLabels = {
+  stacked_on: "叠放",
+  bolted_to: "螺栓连接",
+  guided_by: "导向配合",
+  mounted_on: "安装在",
+  attached_to: "连接到",
+  aligned_with: "对齐",
+  concentric_with: "同轴",
+  supports: "支撑",
+};
+
+const paramLabels = {
+  width_mm: "宽度",
+  depth_mm: "深度",
+  height_mm: "高度",
+  diameter_mm: "直径",
+  outer_diameter_mm: "外径",
+  inner_diameter_mm: "内径",
+  length_mm: "长度",
+  thickness_mm: "厚度",
+  hole_diameter_mm: "孔径",
+  flange_diameter_mm: "法兰直径",
+};
+
 const requirementInput = document.querySelector("#requirementInput");
 const requirementFile = document.querySelector("#requirementFile");
 const planFile = document.querySelector("#planFile");
@@ -186,15 +221,18 @@ async function runGenerate() {
 
 async function runBuild() {
   const requirement = requirementInput.value.trim();
-  if (!requirement) {
-    alert("请先输入需求文本。");
+  const hasPlan = Boolean(planEditor.value.trim());
+  const plan = hasPlan ? getPlanFromEditor() : null;
+  if (!plan && !requirement) {
+    alert("请先输入需求文本，或提供可用的 plan JSON。");
     return;
   }
   await withBusy("正在执行全流程构建...", async () => {
     const payload = await request("/api/build", {
       method: "POST",
       body: {
-        requirement,
+        requirement: plan ? "" : requirement,
+        plan,
         persist: persistToggle.checked,
       },
     });
@@ -240,8 +278,7 @@ function applyPayload(payload) {
 }
 
 function renderStatus() {
-  document.querySelector("#summaryState").textContent =
-    state.summary?.description || "等待输入需求";
+  document.querySelector("#summaryState").textContent = buildStatusText();
   document.querySelector("#partCount").textContent = String(state.summary?.part_count ?? 0);
   document.querySelector("#relationCount").textContent = String(state.summary?.relation_count ?? 0);
 }
@@ -263,11 +300,10 @@ function renderParts() {
               <h3>${escapeHtml(part.name)}</h3>
               <small>${escapeHtml(shapeLabels[part.shape] || part.shape)}</small>
             </div>
-            <small>${escapeHtml(part.id)}</small>
           </header>
           <div class="part-meta">
-            <span class="part-tag">${escapeHtml(part.material_hint)}</span>
-            <strong>${part.status === "error" ? "有错误" : "稳定"}</strong>
+            <span class="part-tag">${escapeHtml(localizeMaterialName(part.material_hint))}</span>
+            <strong>${part.status === "error" ? "有错误" : "已就绪"}</strong>
           </div>
         </button>
       `;
@@ -293,7 +329,7 @@ function renderSelectedPart() {
     .map(
       ([key, value]) => `
         <div class="detail-block">
-          <strong>${escapeHtml(key)}</strong>
+          <strong>${escapeHtml(localizeParamLabel(key))}</strong>
           <code>${Number(value).toFixed(2)} mm</code>
         </div>
       `,
@@ -304,9 +340,9 @@ function renderSelectedPart() {
     .map(
       (item) => `
         <div class="relation-row">
-          <span class="relation-label">子件：${escapeHtml(item.child_id)}</span>
-          <span class="relation-label">关系：${escapeHtml(item.relation)}</span>
-          <span class="relation-label">父件：${escapeHtml(item.parent_id)}</span>
+          <span class="relation-label">子件：${escapeHtml(getPartLabel(item.child_id))}</span>
+          <span class="relation-label">关系：${escapeHtml(localizeRelationName(item.relation))}</span>
+          <span class="relation-label">父件：${escapeHtml(getPartLabel(item.parent_id))}</span>
         </div>
       `,
     )
@@ -323,11 +359,11 @@ function renderSelectedPart() {
         </div>
         <div class="detail-block">
           <strong>材料</strong>
-          <span>${escapeHtml(part.material_hint)}</span>
+          <span>${escapeHtml(localizeMaterialName(part.material_hint))}</span>
         </div>
         <div class="detail-block">
           <strong>状态</strong>
-          <span>${part.status === "error" ? "生成失败" : "正常"}</span>
+          <span>${part.status === "error" ? "生成失败" : "已就绪"}</span>
         </div>
       </div>
       <div class="detail-grid">
@@ -355,6 +391,15 @@ function renderSelectedPart() {
 }
 
 function renderValidation() {
+  if (!state.validation.length) {
+    validationList.innerHTML = `
+      <div class="validation-card success">
+        <strong>暂无校验异常</strong>
+        <p>当前步骤没有返回额外校验项，可以继续查看零件、摘要或脚本输出。</p>
+      </div>
+    `;
+    return;
+  }
   validationList.innerHTML = state.validation
     .map(
       (item) => `
@@ -373,8 +418,8 @@ function renderSummary() {
     return;
   }
   summaryCard.innerHTML = `
-    <h3>${escapeHtml(state.summary.assembly_name)}</h3>
-    <p>${escapeHtml(state.summary.description)}</p>
+    <h3>${escapeHtml(getDisplayAssemblyName())}</h3>
+    <p>${escapeHtml(buildSummaryNarrative())}</p>
     <div class="summary-grid">
       <div class="summary-stat">
         <strong>零件数量</strong>
@@ -432,7 +477,7 @@ function updatePrimaryButton() {
   const tips = {
     analyze: "读取左侧需求文本，生成并校验结构化 plan。",
     generate: "基于中间区域的 plan JSON，生成右侧脚本输出。",
-    build: "从需求到脚本一次跑完整条链路，适合现场演示。",
+    build: "若中间已有 plan，将优先复用当前方案；否则会重新分析需求后再构建。",
   };
   primaryAction.textContent = state.isBusy ? "处理中..." : labels[state.runMode];
   actionTip.textContent = tips[state.runMode];
@@ -533,8 +578,11 @@ function syncControls() {
   const hasFeatureScript = Boolean(fsOutput.value.trim());
 
   let primaryDisabled = state.isBusy;
-  if (state.runMode === "analyze" || state.runMode === "build") {
+  if (state.runMode === "analyze") {
     primaryDisabled = primaryDisabled || !hasRequirement;
+  }
+  if (state.runMode === "build") {
+    primaryDisabled = primaryDisabled || (!hasRequirement && !hasPlan);
   }
   if (state.runMode === "generate") {
     primaryDisabled = primaryDisabled || !hasPlan;
@@ -574,6 +622,69 @@ function localizeGeneratorName(value) {
     return "模板生成";
   }
   return value;
+}
+
+function localizeMaterialName(value) {
+  if (!value) {
+    return "未指定";
+  }
+  return materialLabels[value] || humanizeToken(value);
+}
+
+function localizeRelationName(value) {
+  if (!value) {
+    return "未定义";
+  }
+  return relationLabels[value] || humanizeToken(value);
+}
+
+function localizeParamLabel(value) {
+  return paramLabels[value] || humanizeToken(String(value).replace(/_mm$/u, ""));
+}
+
+function getDisplayAssemblyName() {
+  return humanizeToken(state.summary?.assembly_name || "未命名装配");
+}
+
+function getPartLabel(partId) {
+  return state.parts.find((item) => item.id === partId)?.name || humanizeToken(partId);
+}
+
+function buildStatusText() {
+  if (!state.summary) {
+    return "等待输入需求";
+  }
+  return `${getDisplayAssemblyName()} 已生成，可查看 ${state.summary.part_count ?? 0} 个零件与 ${
+    state.summary.relation_count ?? 0
+  } 条关系。`;
+}
+
+function buildSummaryNarrative() {
+  if (!state.summary) {
+    return "执行后会展示装配摘要、输出路径和生成统计。";
+  }
+  const partCount = state.summary.part_count ?? 0;
+  const relationCount = state.summary.relation_count ?? 0;
+  if (state.featurescript) {
+    return `当前装配共生成 ${partCount} 个零件、${relationCount} 条装配关系，并已输出 FeatureScript。`;
+  }
+  return `当前装配共识别 ${partCount} 个零件、${relationCount} 条装配关系，可继续生成脚本。`;
+}
+
+function humanizeToken(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (/[\u4e00-\u9fff]/u.test(text)) {
+    return text;
+  }
+  return text
+    .replace(/[_-]+/gu, " ")
+    .split(/\s+/u)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 function formatTime(value) {
