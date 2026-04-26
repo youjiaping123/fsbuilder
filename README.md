@@ -9,6 +9,11 @@
 - 一个样例需求 `examples/drawing_die.txt`
 - 一键启动脚本 `scripts/start_webui.sh`
 
+## 文档
+
+- [项目结构说明](docs/PROJECT_STRUCTURE.md)：说明项目目录、核心模块、数据流和能力边界。
+- [答辩演示指南](docs/DEMO_GUIDE.md)：说明推荐演示流程、备用方案和现场注意事项。
+
 ## 适用范围
 
 当前只支持 5 种基础零件形状：
@@ -68,11 +73,13 @@ PORT=8765 ./scripts/start_webui.sh
 
 ```text
 src/                核心源码
+docs/               项目结构说明与答辩演示文档
 examples/           演示样例输入
 scripts/            启动脚本
+output/             本地生成产物目录，默认不提交具体产物
 .env.example        环境变量示例
 pyproject.toml      项目配置
-README.md           说明文档
+README.md           项目入口说明
 ```
 
 ## 已知限制
