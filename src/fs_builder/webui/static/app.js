@@ -204,7 +204,10 @@ async function runAnalyze() {
 }
 
 async function runGenerate() {
-  const plan = getPlanFromEditor();
+  const plan = tryGetPlanFromEditor();
+  if (!plan) {
+    return;
+  }
   await withBusy("正在生成 FeatureScript...", async () => {
     const payload = await request("/api/generate", {
       method: "POST",
@@ -222,7 +225,10 @@ async function runGenerate() {
 async function runBuild() {
   const requirement = requirementInput.value.trim();
   const hasPlan = Boolean(planEditor.value.trim());
-  const plan = hasPlan ? getPlanFromEditor() : null;
+  const plan = hasPlan ? tryGetPlanFromEditor() : null;
+  if (hasPlan && !plan) {
+    return;
+  }
   if (!plan && !requirement) {
     alert("请先输入需求文本，或提供可用的 plan JSON。");
     return;
@@ -502,6 +508,17 @@ function getPlanFromEditor() {
     return JSON.parse(raw);
   } catch (error) {
     throw new Error(`plan JSON 解析失败：${error.message}`);
+  }
+}
+
+function tryGetPlanFromEditor() {
+  try {
+    return getPlanFromEditor();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    pushLog(message);
+    alert(message);
+    return null;
   }
 }
 
